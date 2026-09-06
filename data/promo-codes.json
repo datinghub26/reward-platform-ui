@@ -1,0 +1,34 @@
+{
+  "codes": [
+    {
+      "id": "promo-welcome2026",
+      "code": "WELCOME2026",
+      "rewardPoints": 500,
+      "maxUses": 1000,
+      "usedCount": 143,
+      "expiresAt": "2026-12-31T23:59:59.000Z",
+      "active": true,
+      "createdAt": "2026-08-01T00:00:00.000Z"
+    },
+    {
+      "id": "promo-novasurge",
+      "code": "NOVASURGE",
+      "rewardPoints": 1000,
+      "maxUses": 250,
+      "usedCount": 89,
+      "expiresAt": "2026-10-15T23:59:59.000Z",
+      "active": true,
+      "createdAt": "2026-08-15T00:00:00.000Z"
+    },
+    {
+      "id": "promo-fallkickoff",
+      "code": "FALLKICKOFF",
+      "rewardPoints": 250,
+      "maxUses": 500,
+      "usedCount": 500,
+      "expiresAt": "2026-09-01T00:00:00.000Z",
+      "active": false,
+      "createdAt": "2026-08-01T00:00:00.000Z"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "prizePoolEnabled": true,
+  "resetFrequency": "monthly",
+  "lastResetDate": "2026-09-01T00:00:00.000Z",
+  "totalPrizePoints": 105000,
+  "prizes": [
+    { "rank": 1, "rewardPoints": 50000, "title": "Champion Trophy" },
+    { "rank": 2, "rewardPoints": 25000, "title": "Runner-Up Silver" },
+    { "rank": 3, "rewardPoints": 15000, "title": "Bronze Medal" },
+    { "rank": 4, "rewardPoints": 5000, "title": "Top 5 Achiever" },
+    { "rank": 5, "rewardPoints": 5000, "title": "Top 5 Achiever" },
+    { "rank": 6, "rewardPoints": 1000, "title": "Top 10 Finalist" },
+    { "rank": 7, "rewardPoints": 1000, "title": "Top 10 Finalist" },
+    { "rank": 8, "rewardPoints": 1000, "title": "Top 10 Finalist" },
+    { "rank": 9, "rewardPoints": 1000, "title": "Top 10 Finalist" },
+    { "rank": 10, "rewardPoints": 1000, "title": "Top 10 Finalist" }
+  ]
+}

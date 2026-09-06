@@ -1,0 +1,32 @@
+# Dependencies
+/node_modules
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# Next.js build output
+/.next/
+/out/
+
+# Production builds
+/build
+
+# Environment files - CRITICAL: Never push secrets to GitHub
+.env*.local
+.env
+.env.production
+.env.development
+
+# Debug and system logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Operating System files
+.DS_Store
+*.pem
+Thumbs.db
+
+# TypeScript cache
+*.tsbuildinfo

@@ -1,0 +1,55 @@
+{
+  "topOffersMode": "Manual (Only Admin Selected Offers)",
+  "maxOffers": 10,
+  "rankingMetric": "Most Completed (Conversions)",
+  "providerConfigs": {
+    "klink": {
+      "name": "Klink",
+      "apiKey": "422",
+      "secret": "",
+      "active": true
+    },
+    "adswedmedia": {
+      "name": "Adswedmedia",
+      "apiKey": "Na6F5",
+      "secret": "",
+      "active": true
+    },
+    "gemlads": {
+      "name": "Gemlads",
+      "apiKey": "6a60a8G967b94030f",
+      "secret": "",
+      "active": true
+    },
+    "upwall": {
+      "name": "Upwall",
+      "apiKey": "b796-8881-51d7",
+      "secret": "",
+      "active": true
+    },
+    "clickwall": {
+      "name": "Clickwall",
+      "apiKey": "10889",
+      "secret": "",
+      "active": true
+    },
+    "offery": {
+      "name": "Offery",
+      "apiKey": "dkeebkcr1z3m4ud0or0d4fw",
+      "secret": "",
+      "active": true
+    },
+    "vortexwall": {
+      "name": "Vortexwall",
+      "apiKey": "6a8b64813cdebdefe67f6d0c",
+      "secret": "",
+      "active": true
+    },
+    "notik": {
+      "name": "Notik",
+      "apiKey": "EsK1MWFnCStLmJ2CJJL",
+      "secret": "",
+      "active": true
+    }
+  }
+}

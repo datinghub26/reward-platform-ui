@@ -1,0 +1,54 @@
+{
+  "buttons": [
+    {
+      "id": "earn",
+      "label": "Earn",
+      "url": "/earn",
+      "icon": "💰",
+      "badge": "HOT",
+      "isExternal": false,
+      "order": 1,
+      "active": true
+    },
+    {
+      "id": "leaderboard",
+      "label": "Leaderboard",
+      "url": "/leaderboard",
+      "icon": "🏆",
+      "badge": "REWARDS",
+      "isExternal": false,
+      "order": 2,
+      "active": true
+    },
+    {
+      "id": "withdraw",
+      "label": "Withdraw",
+      "url": "/withdraw",
+      "icon": "💸",
+      "badge": "INSTANT",
+      "isExternal": false,
+      "order": 3,
+      "active": true
+    },
+    {
+      "id": "discord",
+      "label": "Discord Community",
+      "url": "https://discord.gg/rewardnova",
+      "icon": "💬",
+      "badge": "JOIN",
+      "isExternal": true,
+      "order": 4,
+      "active": true
+    },
+    {
+      "id": "support",
+      "label": "Support Desk",
+      "url": "/support",
+      "icon": "🆘",
+      "badge": "",
+      "isExternal": false,
+      "order": 5,
+      "active": true
+    }
+  ]
+}

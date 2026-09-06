@@ -1,0 +1,40 @@
+{
+  "campaigns": [
+    {
+      "id": "camp-fall-multiplier-2x",
+      "title": "Fall Mega Multiplier 2x",
+      "description": "Earn 2x reward points on all surveys and mobile app activities completed this week.",
+      "multiplier": 2.0,
+      "bonusPoints": 500,
+      "status": "active",
+      "targetProviders": "all",
+      "startDate": "2026-08-15T00:00:00.000Z",
+      "endDate": "2026-09-30T23:59:59.000Z",
+      "createdAt": "2026-08-15T00:00:00.000Z"
+    },
+    {
+      "id": "camp-global-survey-sweepstakes",
+      "title": "Global Survey Sweepstakes",
+      "description": "Complete 3 survey tasks to enter the 100,000 points prize pool with guaranteed entry bonus.",
+      "multiplier": 1.5,
+      "bonusPoints": 1800,
+      "status": "active",
+      "targetProviders": "all",
+      "startDate": "2026-08-20T00:00:00.000Z",
+      "endDate": "2026-09-25T23:59:59.000Z",
+      "createdAt": "2026-08-20T00:00:00.000Z"
+    },
+    {
+      "id": "camp-weekend-gaming-surge",
+      "title": "Weekend Gaming Surge 1.5x",
+      "description": "Special 50% extra points on all mobile game level milestones over the weekend.",
+      "multiplier": 1.5,
+      "bonusPoints": 1000,
+      "status": "scheduled",
+      "targetProviders": "all",
+      "startDate": "2026-09-12T00:00:00.000Z",
+      "endDate": "2026-09-14T23:59:59.000Z",
+      "createdAt": "2026-09-01T00:00:00.000Z"
+    }
+  ]
+}

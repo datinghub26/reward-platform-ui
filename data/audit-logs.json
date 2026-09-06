@@ -1,0 +1,19 @@
+{
+  "logs": [
+    {
+      "action": "redeem_promo_code",
+      "category": "rewards",
+      "details": "User gsniwk0d@1sec.email redeemed promo code WELCOME2026 (+500 pts)",
+      "id": "log-1788658310444-gkd6",
+      "timestamp": "2026-09-06T01:31:50.444Z"
+    },
+    {
+      "id": "log-init-01",
+      "timestamp": "2026-09-05T10:00:00.000Z",
+      "action": "system_bootstrap",
+      "category": "system",
+      "details": "RewardNova core security and financial systems verified.",
+      "adminEmail": "admin@rewardnova.com"
+    }
+  ]
+}

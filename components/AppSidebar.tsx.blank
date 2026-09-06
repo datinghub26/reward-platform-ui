@@ -1,0 +1,146 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import Brand from "./Brand";
+import SignOutButton from "./SignOutButton";
+import { createClient } from "@/lib/supabase/client";
+
+export default function AppSidebar({ active }: { active: string }) {
+  const items = [
+    ["dashboard", "🏠", "Dashboard", "/dashboard"],
+    ["earn", "💰", "Earn", "/earn"],
+    ["withdraw", "💸", "Withdraw", "/withdraw"],
+    ["transactions", "📋", "Transactions", "/transactions"],
+    ["leaderboard", "🏆", "Leaderboard", "/leaderboard"],
+    ["profile", "👤", "Profile", "/profile"],
+    ["support", "🆘", "Support", "/support"],
+  ];
+
+  const [email, setEmail] = useState("");
+
+  useEffect(() => {
+    const supabase = createClient();
+
+    supabase.auth.getUser().then(({ data }) => {
+      setEmail(data.user?.email ?? "");
+    });
+  }, []);
+
+  return (
+    <>
+      <aside className="sidebar">
+        <Brand />
+
+        <nav
+          className="side-nav"
+          aria-label="Account navigation"
+        >
+          {items.map(([key, icon, label, href]) => (
+            <Link
+              className={active === key ? "active" : ""}
+              href={href}
+              key={key}
+            >
+              <span>{icon}</span>
+              {label}
+            </Link>
+          ))}
+        </nav>
+
+        <div className="sidebar-bottom">
+          <div className="sidebar-user">
+            <div className="avatar">RN</div>
+
+            <div className="sidebar-user-copy">
+              <strong>RewardNova Member</strong>
+
+              <span>
+                {email || "Signed in"}
+              </span>
+            </div>
+          </div>
+
+          <SignOutButton />
+        </div>
+      </aside>
+
+      <nav
+        className="mobile-nav"
+        aria-label="Mobile navigation"
+      >
+        <Link
+          className={
+            active === "dashboard"
+              ? "active"
+              : ""
+          }
+          href="/dashboard"
+        >
+          <span>🏠</span>
+          Home
+        </Link>
+
+        <Link
+          className={
+            active === "earn"
+              ? "active"
+              : ""
+          }
+          href="/earn"
+        >
+          <span>💰</span>
+          Earn
+        </Link>
+
+        <Link
+          className={
+            active === "withdraw"
+              ? "active"
+              : ""
+          }
+          href="/withdraw"
+        >
+          <span>💸</span>
+          Withdraw
+        </Link>
+
+        <Link
+          className={
+            active === "transactions"
+              ? "active"
+              : ""
+          }
+          href="/transactions"
+        >
+          <span>📋</span>
+          Transactions
+        </Link>
+
+        <Link
+          className={
+            active === "profile"
+              ? "active"
+              : ""
+          }
+          href="/profile"
+        >
+          <span>👤</span>
+          Profile
+        </Link>
+
+        <Link
+          className={
+            active === "support"
+              ? "active"
+              : ""
+          }
+          href="/support"
+        >
+          <span>🆘</span>
+          Help
+        </Link>
+      </nav>
+    </>
+  );
+}

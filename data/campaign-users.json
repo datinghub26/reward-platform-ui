@@ -1,0 +1,37 @@
+{
+  "participants": [
+    {
+      "id": "cu-001",
+      "userId": "5ffefb55-2973-47cd-8ccd-7c78e92cd043",
+      "displayName": "mamnunahmedcpa",
+      "email": "mamnun@rewardnova.com",
+      "campaignId": "camp-fall-multiplier-2x",
+      "campaignTitle": "Fall Mega Multiplier 2x",
+      "status": "completed",
+      "rewardPoints": 2500,
+      "joinedDate": "2026-08-18T14:30:00.000Z"
+    },
+    {
+      "id": "cu-002",
+      "userId": "46637e5b-cf5f-40aa-8775-fd6c15baf10b",
+      "displayName": "m29m2t411a",
+      "email": "m29m2t411a@gmail.com",
+      "campaignId": "camp-global-survey-sweepstakes",
+      "campaignTitle": "Global Survey Sweepstakes",
+      "status": "in_progress",
+      "rewardPoints": 1800,
+      "joinedDate": "2026-08-24T10:15:00.000Z"
+    },
+    {
+      "id": "cu-003",
+      "userId": "f24c9a10-0080-4a71-9229-b827ffd1b27c",
+      "displayName": "gsniwk0d",
+      "email": "gsniwk0d@1sec.email",
+      "campaignId": "camp-fall-multiplier-2x",
+      "campaignTitle": "Fall Mega Multiplier 2x",
+      "status": "completed",
+      "rewardPoints": 2500,
+      "joinedDate": "2026-08-26T16:45:00.000Z"
+    }
+  ]
+}
