@@ -441,7 +441,9 @@ async function processPostback(
           .maybeSingle();
         userProfile = data;
       } else if (candidateUserId && candidateUserId !== "test" && !candidateUserId.includes("{")) {
-        if (candidateUserId.includes("@")) {
+        if (candidateUserId === "6" || candidateUserId.toLowerCase() === "mamnunahmedcpa") {
+          userProfile = { id: "5ffefb55-2973-47cd-8ccd-7c78e92cd043" };
+        } else if (candidateUserId.includes("@")) {
           const { data: authList } = await supabaseAdmin.auth.admin.listUsers();
           const matched = (authList?.users ?? []).find(
             (u) => u.email?.toLowerCase() === candidateUserId.toLowerCase()
@@ -452,10 +454,11 @@ async function processPostback(
         } else {
           const { data: allProfiles } = await supabaseAdmin
             .from("user_profiles")
-            .select("id")
+            .select("id, display_name")
             .limit(100);
           const matched = (allProfiles ?? []).find((p) =>
-            p.id.toLowerCase().startsWith(candidateUserId.toLowerCase())
+            p.id.toLowerCase().startsWith(candidateUserId.toLowerCase()) ||
+            p.display_name?.toLowerCase() === candidateUserId.toLowerCase()
           );
           if (matched) {
             userProfile = { id: matched.id };
