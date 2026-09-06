@@ -2,7 +2,8 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 interface AdminHeaderProps {
   userEmail: string;
@@ -10,7 +11,22 @@ interface AdminHeaderProps {
 
 export default function AdminHeader({ userEmail }: AdminHeaderProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const supabase = createClient();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+
+  async function handleSignOut(e: React.MouseEvent) {
+    e.preventDefault();
+    setSigningOut(true);
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error("Sign out error:", err);
+    }
+    router.replace("/login");
+    router.refresh();
+  }
 
   // Generate breadcrumb text from path
   const getBreadcrumbs = () => {
@@ -129,6 +145,8 @@ export default function AdminHeader({ userEmail }: AdminHeaderProps) {
               <form action="/auth/signout" method="post" style={{ marginTop: "4px" }}>
                 <button
                   type="submit"
+                  onClick={handleSignOut}
+                  disabled={signingOut}
                   style={{
                     width: "100%",
                     textAlign: "left",
@@ -138,10 +156,11 @@ export default function AdminHeader({ userEmail }: AdminHeaderProps) {
                     background: "none",
                     border: "none",
                     borderRadius: "6px",
-                    cursor: "pointer",
+                    cursor: signingOut ? "not-allowed" : "pointer",
+                    opacity: signingOut ? 0.6 : 1,
                   }}
                 >
-                  Sign Out
+                  {signingOut ? "Signing out..." : "Sign Out"}
                 </button>
               </form>
             </div>
