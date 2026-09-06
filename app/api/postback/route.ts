@@ -428,6 +428,22 @@ async function processPostback(
     // (This enables seamless crediting for external partner offerwall callbacks like Klink, Adswedmedia, Gemlads, Notik)
     if (error && error.message.toLowerCase().includes("unknown click_id")) {
       const candidateUserId = (input.userId || input.clickId).trim();
+
+      // Gracefully acknowledge test postbacks from networks (e.g. NexoWall, ClickWall test tool)
+      const isTestLead =
+        candidateUserId.toLowerCase().includes("test") ||
+        (typeof input.clickId === "string" && input.clickId.toLowerCase().includes("test")) ||
+        Boolean(input.payload?.test);
+
+      if (isTestLead) {
+        return NextResponse.json({
+          ok: true,
+          status: "approved",
+          test: true,
+          message: "Test postback processed successfully",
+        });
+      }
+
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (uuidRegex.test(candidateUserId)) {
         const { data: userProfile } = await supabaseAdmin
