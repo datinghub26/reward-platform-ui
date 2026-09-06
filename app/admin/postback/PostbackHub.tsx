@@ -30,18 +30,20 @@ export default function PostbackHub({
   const [providers, setProviders] = useState<ProviderAuth[]>(initialProviders);
   const [visibleSecrets, setVisibleSecrets] = useState<Record<string, boolean>>({});
   const [copiedUrl, setCopiedUrl] = useState(false);
-  const [clientOrigin, setClientOrigin] = useState<string>("");
+  const [isLocalhost, setIsLocalhost] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setClientOrigin(window.location.origin);
+      const host = window.location.hostname;
+      if (host === "localhost" || host === "127.0.0.1") {
+        setIsLocalhost(true);
+      }
     }
   }, []);
 
-  const effectiveBaseUrl =
-    clientOrigin && !clientOrigin.includes("localhost")
-      ? clientOrigin
-      : (appUrl && !appUrl.includes("localhost") ? appUrl : "https://www.rewardnova.shop");
+  const effectiveBaseUrl = isLocalhost
+    ? (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000")
+    : "https://www.rewardnova.shop";
 
   // New Provider Modal
   const [isModalOpen, setIsModalOpen] = useState(false);

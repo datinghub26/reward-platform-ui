@@ -4,11 +4,11 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import {
-  getStreaksConfig,
-  getUserStreakStatus,
-  recordUserStreakClaim,
+  getStreaksConfigAsync,
+  getUserStreakStatusAsync,
+  recordUserStreakClaimAsync,
 } from "@/lib/streaks";
-import { validateAndRedeemPromoCode } from "@/lib/bonuses";
+import { validateAndRedeemPromoCodeAsync } from "@/lib/bonuses";
 import { calculateUserLevel } from "@/lib/levels";
 import { logAdminAudit } from "@/lib/audit-logger";
 
@@ -31,7 +31,7 @@ export async function getUserRewardsStatusAction() {
 
     const lifetimePoints = Number(profile?.lifetime_points ?? 0);
     const levelInfo = calculateUserLevel(lifetimePoints);
-    const streakStatus = getUserStreakStatus(user.id);
+    const streakStatus = await getUserStreakStatusAsync(user.id);
 
     // Calculate today's approved points for streak qualification
     const now = new Date();
@@ -49,7 +49,7 @@ export async function getUserRewardsStatusAction() {
       0
     );
 
-    const config = getStreaksConfig();
+    const config = await getStreaksConfigAsync();
     const minRequired = config.minDailyPoints || 50;
     const isQualified = todayPoints >= minRequired;
 
@@ -82,7 +82,7 @@ export async function claimDailyStreakAction() {
       return { success: false, error: "You must be signed in to claim streak rewards." };
     }
 
-    const streakStatus = getUserStreakStatus(user.id);
+    const streakStatus = await getUserStreakStatusAsync(user.id);
     if (!streakStatus.canClaimToday) {
       return {
         success: false,
@@ -108,7 +108,7 @@ export async function claimDailyStreakAction() {
       0
     );
 
-    const config = getStreaksConfig();
+    const config = await getStreaksConfigAsync();
     const minRequired = config.minDailyPoints || 50;
 
     if (todayPoints < minRequired) {
@@ -119,7 +119,7 @@ export async function claimDailyStreakAction() {
     }
 
     // Record streak claim in JSON state
-    const recordResult = recordUserStreakClaim(user.id);
+    const recordResult = await recordUserStreakClaimAsync(user.id);
     if (!recordResult.success) {
       return { success: false, error: recordResult.error || "Failed to claim streak." };
     }
@@ -218,8 +218,8 @@ export async function redeemPromoCodeAction(rawCode: string) {
       };
     }
 
-    // Validate and update voucher usage
-    const promoResult = validateAndRedeemPromoCode(cleanCode);
+    // Validate and update voucher usage (queries Supabase system_config)
+    const promoResult = await validateAndRedeemPromoCodeAsync(cleanCode);
     if (!promoResult.success || !promoResult.promo) {
       return { success: false, error: promoResult.error || "Invalid promo code." };
     }

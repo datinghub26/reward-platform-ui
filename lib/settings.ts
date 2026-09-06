@@ -97,7 +97,7 @@ const CONFIG_KEY = "platform_settings";
 const FALLBACK_FILE = "settings.json";
 
 export function getPlatformSettings(): PlatformSettings {
-  const parsed = getLocalFallbackConfig<Partial<PlatformSettings>>(FALLBACK_FILE, {});
+  const parsed = getLocalFallbackConfig<Partial<PlatformSettings>>(FALLBACK_FILE, {}, CONFIG_KEY);
   return {
     ...DEFAULT_SETTINGS,
     ...parsed,

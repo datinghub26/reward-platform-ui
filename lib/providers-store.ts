@@ -43,7 +43,7 @@ export function matchesProvider(p: StoredProvider, identifier: string): boolean 
  * Synchronous provider getter (uses local fallback file).
  */
 export function getStoredProviders(): StoredProvider[] {
-  return getLocalFallbackConfig<StoredProvider[]>(FALLBACK_FILE, []);
+  return getLocalFallbackConfig<StoredProvider[]>(FALLBACK_FILE, [], CONFIG_KEY);
 }
 
 /**

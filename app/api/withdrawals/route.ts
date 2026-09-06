@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getPlatformSettings } from "@/lib/settings";
-import { getActiveCashoutMethods } from "@/lib/cashouts";
+import { getActiveCashoutMethodsAsync } from "@/lib/cashouts";
 
 export const dynamic = "force-dynamic";
 
@@ -72,9 +72,9 @@ export async function POST(request: Request) {
     }
 
     // Validate payment method against active configured cashout methods
-    const activeMethods = getActiveCashoutMethods();
+    const activeMethods = await getActiveCashoutMethodsAsync();
     const matchedMethod = activeMethods.find(
-      (m) =>
+      (m: { id: string; name: string }) =>
         m.id.toLowerCase() === paymentMethod.toLowerCase() ||
         m.name.toLowerCase() === paymentMethod.toLowerCase() ||
         m.name.toLowerCase().startsWith(paymentMethod.toLowerCase()) ||

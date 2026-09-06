@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import AppSidebar from "@/components/AppSidebar";
 import { createClient } from "@/lib/supabase/server";
-import { getActiveCashoutMethods } from "@/lib/cashouts";
+import { getActiveCashoutMethodsAsync } from "@/lib/cashouts";
 import WithdrawForm from "./WithdrawForm";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +37,7 @@ export default async function WithdrawPage() {
   const [
     { data: profile, error },
     { data: userWithdrawals },
+    cashoutMethods,
   ] = await Promise.all([
     supabase
       .from("user_profiles")
@@ -49,6 +50,7 @@ export default async function WithdrawPage() {
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(15),
+    getActiveCashoutMethodsAsync(),
   ]);
 
   if (error) {
@@ -65,8 +67,8 @@ export default async function WithdrawPage() {
       <main className="dashboard-main">
         <div className="dashboard-top">
           <div>
-            <span className="eyebrow">💸 Payouts</span>
-            <h1>Withdraw your rewards</h1>
+            <span className="eyebrow">Payouts</span>
+            <h1>Withdraw Rewards</h1>
             <div className="muted">
               Request a payout from your available RewardNova balance.
             </div>
@@ -79,7 +81,7 @@ export default async function WithdrawPage() {
 
         <WithdrawForm
           availablePoints={availablePoints}
-          methods={getActiveCashoutMethods()}
+          methods={cashoutMethods}
         />
 
         {withdrawals.length > 0 && (

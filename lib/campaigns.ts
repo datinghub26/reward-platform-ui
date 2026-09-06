@@ -43,7 +43,7 @@ function triggerRevalidation() {
 }
 
 export function getCampaigns(): Campaign[] {
-  const data = getLocalFallbackConfig<{ campaigns: Campaign[] }>(FALLBACK_FILE, { campaigns: [] });
+  const data = getLocalFallbackConfig<{ campaigns: Campaign[] }>(FALLBACK_FILE, { campaigns: [] }, CONFIG_KEY);
   return Array.isArray(data.campaigns) ? data.campaigns : [];
 }
 
@@ -120,7 +120,7 @@ export function deleteCampaign(id: string): boolean {
 }
 
 export function getCampaignParticipants(): CampaignParticipant[] {
-  const data = getLocalFallbackConfig<{ participants: CampaignParticipant[] }>(USERS_FALLBACK_FILE, { participants: [] });
+  const data = getLocalFallbackConfig<{ participants: CampaignParticipant[] }>(USERS_FALLBACK_FILE, { participants: [] }, USERS_CONFIG_KEY);
   return Array.isArray(data.participants) ? data.participants : [];
 }
 

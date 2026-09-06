@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import crypto from "crypto";
+import { getAppUrl } from "@/lib/url-helper";
 
 async function verifyAdmin() {
   const supabase = await createClient();
@@ -109,8 +110,10 @@ export async function testPostbackSimulation({
   try {
     await verifyAdmin();
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const postbackSecret = token || process.env.POSTBACK_SECRET || "";
+    const baseUrl = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : (process.env.NEXT_PUBLIC_APP_URL || getAppUrl());
+    const postbackSecret = token || process.env.POSTBACK_SECRET || "RewardNova_Postback_2026_A9x7Kp4Lm2Q";
 
     const url = new URL("/api/postback", baseUrl);
     url.searchParams.set("click_id", clickId.trim());

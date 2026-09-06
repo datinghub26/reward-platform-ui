@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import AppSidebar from "@/components/AppSidebar";
 import { createClient } from "@/lib/supabase/server";
 import { calculateUserLevel } from "@/lib/levels";
-import { getStreaksConfig, getUserStreakStatus } from "@/lib/streaks";
+import { getStreaksConfigAsync, getUserStreakStatusAsync } from "@/lib/streaks";
 import UserLevelWidget from "@/components/UserLevelWidget";
 import DailyStreakWidget from "@/components/DailyStreakWidget";
 import PromoCodeWidget from "@/components/PromoCodeWidget";
@@ -87,8 +87,10 @@ export default async function DashboardPage() {
 
   // Rewards Engine Calculations
   const levelInfo = calculateUserLevel(lifetime);
-  const streakConfig = getStreaksConfig();
-  const rawStreakStatus = getUserStreakStatus(user.id);
+  const [streakConfig, rawStreakStatus] = await Promise.all([
+    getStreaksConfigAsync(),
+    getUserStreakStatusAsync(user.id),
+  ]);
 
   const todayPoints = (todayConversions ?? []).reduce(
     (sum, c) => sum + Number(c.reward_points ?? 0),

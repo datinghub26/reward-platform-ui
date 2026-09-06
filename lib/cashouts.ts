@@ -1,38 +1,67 @@
-import fs from "fs";
-import path from "path";
 import { CashoutMethod, DEFAULT_METHODS } from "./cashout-types";
+import { getSystemConfig, setSystemConfig, getLocalFallbackConfig } from "./system-config";
 
 export * from "./cashout-types";
 
-const CASHOUTS_FILE = path.join(process.cwd(), "data", "cashout-methods.json");
+const CONFIG_KEY = "cashout_methods";
+const FALLBACK_FILE = "cashout-methods.json";
+
+function triggerRevalidation() {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { revalidatePath } = require("next/cache");
+    revalidatePath("/admin/cashouts");
+    revalidatePath("/withdraw");
+  } catch {
+    // No-op outside Next.js runtime
+  }
+}
 
 export function getCashoutMethods(): CashoutMethod[] {
-  try {
-    if (fs.existsSync(CASHOUTS_FILE)) {
-      const raw = fs.readFileSync(CASHOUTS_FILE, "utf-8").replace(/^\uFEFF/, "");
-      return JSON.parse(raw);
-    }
-  } catch (err) {
-    console.error("Failed to read cashout methods:", err);
-  }
-  return DEFAULT_METHODS;
+  const methods = getLocalFallbackConfig<CashoutMethod[]>(FALLBACK_FILE, DEFAULT_METHODS, CONFIG_KEY);
+  return Array.isArray(methods) && methods.length > 0 ? methods : DEFAULT_METHODS;
+}
+
+export async function getCashoutMethodsAsync(): Promise<CashoutMethod[]> {
+  const fallback = getCashoutMethods();
+  const methods = await getSystemConfig<CashoutMethod[]>(CONFIG_KEY, FALLBACK_FILE, fallback);
+  return Array.isArray(methods) && methods.length > 0 ? methods : DEFAULT_METHODS;
 }
 
 export function getActiveCashoutMethods(): CashoutMethod[] {
   return getCashoutMethods().filter((m) => m.status === true);
 }
 
-export function saveCashoutMethods(methods: CashoutMethod[]) {
-  try {
-    const dir = path.dirname(CASHOUTS_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(CASHOUTS_FILE, JSON.stringify(methods, null, 2), "utf-8");
-  } catch (err) {
-    console.error("Failed to persist cashout methods:", err);
-    throw new Error("Failed to persist cashout methods");
-  }
+export async function getActiveCashoutMethodsAsync(): Promise<CashoutMethod[]> {
+  const all = await getCashoutMethodsAsync();
+  return all.filter((m) => m.status === true);
+}
+
+export async function saveCashoutMethodsAsync(methods: CashoutMethod[]): Promise<boolean> {
+  const ok = await setSystemConfig(CONFIG_KEY, FALLBACK_FILE, methods);
+  triggerRevalidation();
+  return ok;
+}
+
+export function saveCashoutMethods(methods: CashoutMethod[]): boolean {
+  saveCashoutMethodsAsync(methods).catch((e) => console.error("Async saveCashoutMethods error:", e));
+  return true;
+}
+
+export async function updateCashoutMethodAsync(
+  id: string,
+  partial: Partial<CashoutMethod>
+): Promise<CashoutMethod | null> {
+  const methods = await getCashoutMethodsAsync();
+  const index = methods.findIndex((m) => m.id === id);
+  if (index === -1) return null;
+
+  methods[index] = {
+    ...methods[index],
+    ...partial,
+  };
+  await saveCashoutMethodsAsync(methods);
+  return methods[index];
 }
 
 export function updateCashoutMethod(
@@ -51,6 +80,15 @@ export function updateCashoutMethod(
   return methods[index];
 }
 
+export async function toggleCashoutMethodAsync(id: string): Promise<CashoutMethod | null> {
+  const methods = await getCashoutMethodsAsync();
+  const method = methods.find((m) => m.id === id);
+  if (!method) return null;
+  method.status = !method.status;
+  await saveCashoutMethodsAsync(methods);
+  return method;
+}
+
 export function toggleCashoutMethod(id: string): CashoutMethod | null {
   const methods = getCashoutMethods();
   const method = methods.find((m) => m.id === id);
@@ -58,6 +96,19 @@ export function toggleCashoutMethod(id: string): CashoutMethod | null {
   method.status = !method.status;
   saveCashoutMethods(methods);
   return method;
+}
+
+export async function createCashoutMethodAsync(
+  input: Omit<CashoutMethod, "id">
+): Promise<CashoutMethod> {
+  const methods = await getCashoutMethodsAsync();
+  const newMethod: CashoutMethod = {
+    id: `cashout-${Date.now()}`,
+    ...input,
+  };
+  methods.push(newMethod);
+  await saveCashoutMethodsAsync(methods);
+  return newMethod;
 }
 
 export function createCashoutMethod(
@@ -71,6 +122,13 @@ export function createCashoutMethod(
   methods.push(newMethod);
   saveCashoutMethods(methods);
   return newMethod;
+}
+
+export async function deleteCashoutMethodAsync(id: string): Promise<boolean> {
+  const methods = await getCashoutMethodsAsync();
+  const filtered = methods.filter((m) => m.id !== id);
+  if (filtered.length === methods.length) return false;
+  return saveCashoutMethodsAsync(filtered);
 }
 
 export function deleteCashoutMethod(id: string): boolean {

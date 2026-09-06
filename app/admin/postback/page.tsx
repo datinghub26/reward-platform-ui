@@ -33,7 +33,7 @@ export default async function AdminPostbackPage() {
     created_at: p.created_at,
   }));
 
-  const globalSecret = process.env.POSTBACK_SECRET || "rewardnova-secure-postback-secret";
+  const globalSecret = process.env.POSTBACK_SECRET || "RewardNova_Postback_2026_A9x7Kp4Lm2Q";
   const appUrl = getAppUrl(headersList);
 
   return (

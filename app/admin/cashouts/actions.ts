@@ -1,24 +1,24 @@
-﻿"use server";
+"use server";
 
 import { revalidatePath } from "next/cache";
 import {
-  getCashoutMethods,
-  toggleCashoutMethod,
-  updateCashoutMethod,
-  createCashoutMethod,
-  deleteCashoutMethod,
+  getCashoutMethodsAsync,
+  toggleCashoutMethodAsync,
+  updateCashoutMethodAsync,
+  createCashoutMethodAsync,
+  deleteCashoutMethodAsync,
   CashoutMethod,
 } from "@/lib/cashouts";
 
 export async function getCashoutMethodsAction(): Promise<CashoutMethod[]> {
-  return getCashoutMethods();
+  return getCashoutMethodsAsync();
 }
 
 export async function toggleCashoutMethodAction(
   id: string
 ): Promise<{ success: boolean; method?: CashoutMethod; error?: string }> {
   try {
-    const updated = toggleCashoutMethod(id);
+    const updated = await toggleCashoutMethodAsync(id);
     if (!updated) return { success: false, error: "Method not found" };
     revalidatePath("/admin/cashouts");
     revalidatePath("/withdraw");
@@ -36,7 +36,7 @@ export async function updateCashoutMethodAction(
   updates: Partial<CashoutMethod>
 ): Promise<{ success: boolean; method?: CashoutMethod; error?: string }> {
   try {
-    const updated = updateCashoutMethod(id, updates);
+    const updated = await updateCashoutMethodAsync(id, updates);
     if (!updated) return { success: false, error: "Method not found" };
     revalidatePath("/admin/cashouts");
     revalidatePath("/withdraw");
@@ -56,7 +56,7 @@ export async function createCashoutMethodAction(
     if (!input.name?.trim()) {
       return { success: false, error: "Method name is required" };
     }
-    const created = createCashoutMethod({
+    const created = await createCashoutMethodAsync({
       name: input.name.trim(),
       logo: input.logo?.trim() || "💎",
       category: input.category || "Crypto",
@@ -81,7 +81,7 @@ export async function deleteCashoutMethodAction(
   id: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const deleted = deleteCashoutMethod(id);
+    const deleted = await deleteCashoutMethodAsync(id);
     revalidatePath("/admin/cashouts");
     revalidatePath("/withdraw");
     return { success: deleted };

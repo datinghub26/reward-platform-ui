@@ -26,7 +26,7 @@ function triggerRevalidation() {
 }
 
 export function getLevelTiers(): LevelTier[] {
-  const data = getLocalFallbackConfig<{ levels: LevelTier[] }>(FALLBACK_FILE, { levels: [] });
+  const data = getLocalFallbackConfig<{ levels: LevelTier[] }>(FALLBACK_FILE, { levels: [] }, CONFIG_KEY);
   if (Array.isArray(data.levels)) {
     return data.levels.sort((a: LevelTier, b: LevelTier) => a.level - b.level);
   }

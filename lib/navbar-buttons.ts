@@ -28,7 +28,7 @@ function triggerRevalidation() {
 }
 
 export function getNavbarButtons(): NavbarButton[] {
-  const data = getLocalFallbackConfig<{ buttons: NavbarButton[] }>(FALLBACK_FILE, { buttons: [] });
+  const data = getLocalFallbackConfig<{ buttons: NavbarButton[] }>(FALLBACK_FILE, { buttons: [] }, CONFIG_KEY);
   if (Array.isArray(data.buttons)) {
     return data.buttons.sort((a, b) => a.order - b.order);
   }

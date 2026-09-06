@@ -105,13 +105,19 @@ export async function setSystemConfig<T>(
  */
 export function getLocalFallbackConfig<T>(
   fallbackFilename: string,
-  defaultValue: T
+  defaultValue: T,
+  cacheKey?: string
 ): T {
+  if (cacheKey && memoryCache.has(cacheKey)) {
+    return memoryCache.get(cacheKey) as T;
+  }
   try {
     const filePath = path.join(process.cwd(), "data", fallbackFilename);
     if (fs.existsSync(filePath)) {
       const raw = fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, "");
-      return JSON.parse(raw) as T;
+      const parsed = JSON.parse(raw) as T;
+      if (cacheKey) memoryCache.set(cacheKey, parsed);
+      return parsed;
     }
   } catch {
     // Ignore read errors

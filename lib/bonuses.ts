@@ -27,7 +27,7 @@ function triggerRevalidation() {
 }
 
 export function getPromoCodes(): PromoCode[] {
-  const data = getLocalFallbackConfig<{ codes: PromoCode[] }>(FALLBACK_FILE, { codes: [] });
+  const data = getLocalFallbackConfig<{ codes: PromoCode[] }>(FALLBACK_FILE, { codes: [] }, CONFIG_KEY);
   return Array.isArray(data.codes) ? data.codes : [];
 }
 

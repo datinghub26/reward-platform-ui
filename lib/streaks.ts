@@ -45,7 +45,7 @@ function triggerRevalidation() {
 }
 
 export function getStreaksConfig(): StreaksConfig {
-  const data = getLocalFallbackConfig<StreaksConfig>(FALLBACK_FILE, DEFAULT_STREAKS_CONFIG);
+  const data = getLocalFallbackConfig<StreaksConfig>(FALLBACK_FILE, DEFAULT_STREAKS_CONFIG, CONFIG_KEY);
   if (Array.isArray(data.streakDays)) {
     return data;
   }
@@ -84,7 +84,7 @@ export interface UserStreakData {
 }
 
 function getAllUserStreaks(): Record<string, UserStreakData> {
-  return getLocalFallbackConfig<Record<string, UserStreakData>>(USER_STREAKS_FILE, {});
+  return getLocalFallbackConfig<Record<string, UserStreakData>>(USER_STREAKS_FILE, {}, USER_STREAKS_KEY);
 }
 
 async function getAllUserStreaksAsync(): Promise<Record<string, UserStreakData>> {
@@ -180,6 +180,44 @@ export async function getUserStreakStatusAsync(userId: string) {
     rewardPoints,
     lastClaimDate: userRecord.lastClaimDate,
     totalStreaksClaimed: userRecord.totalStreaksClaimed,
+  };
+}
+
+export async function recordUserStreakClaimAsync(userId: string): Promise<{
+  success: boolean;
+  newStreak: number;
+  rewardPoints: number;
+  error?: string;
+}> {
+  const status = await getUserStreakStatusAsync(userId);
+  if (!status.canClaimToday) {
+    return {
+      success: false,
+      newStreak: status.currentStreak,
+      rewardPoints: 0,
+      error: status.alreadyClaimedToday
+        ? "You have already claimed your daily streak bonus today!"
+        : "Daily streak is currently unavailable.",
+    };
+  }
+
+  const all = await getAllUserStreaksAsync();
+  const todayStr = new Date().toISOString().split("T")[0];
+  const newStreak = status.targetDay;
+
+  all[userId] = {
+    currentStreak: newStreak,
+    lastClaimDate: todayStr,
+    totalStreaksClaimed: (status.totalStreaksClaimed || 0) + 1,
+  };
+
+  await saveAllUserStreaksAsync(all);
+  triggerRevalidation();
+
+  return {
+    success: true,
+    newStreak,
+    rewardPoints: status.rewardPoints,
   };
 }
 
