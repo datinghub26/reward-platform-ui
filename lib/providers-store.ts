@@ -24,6 +24,7 @@ function triggerRevalidation() {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { revalidatePath } = require("next/cache");
     revalidatePath("/admin/providers");
+    revalidatePath("/admin/offers-settings");
     revalidatePath("/earn");
   } catch {
     // No-op outside Next.js request
@@ -35,6 +36,11 @@ export function matchesProvider(p: StoredProvider, identifier: string): boolean 
   const cleanTarget = identifier.toLowerCase().replace(/[^a-z0-9]/g, "");
   const cleanId = (p.id || "").toLowerCase().replace(/[^a-z0-9]/g, "");
   const cleanName = (p.name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+  if ((cleanTarget === "clickwall" || cleanTarget === "nexowall") &&
+      (cleanId === "clickwall" || cleanId === "nexowall" || cleanName === "clickwall" || cleanName === "nexowall")) {
+    return true;
+  }
 
   return p.id === identifier || cleanId === cleanTarget || cleanName === cleanTarget;
 }

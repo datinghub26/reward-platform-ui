@@ -27,10 +27,10 @@
       "secret": "",
       "active": true
     },
-    "clickwall": {
-      "name": "Clickwall",
-      "apiKey": "10889",
-      "secret": "",
+    "nexowall": {
+      "name": "Nexowall",
+      "apiKey": "J92ua8Q9Ra40a13N",
+      "secret": "RewardNova_Postback_2026_A9x7Kp4Lm2Q",
       "active": true
     },
     "offery": {

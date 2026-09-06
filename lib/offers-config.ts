@@ -29,9 +29,14 @@ export function getOffersConfig(): OffersPlatformConfig {
     }
 
     const liveProviders = getStoredProviders();
+    const { matchesProvider } = require("./providers-store");
+
     for (const prov of liveProviders) {
-      const existing = currentConfig.providerConfigs[prov.id];
-      if (!existing) {
+      const existingKey = Object.keys(currentConfig.providerConfigs).find(
+        (key) => key === prov.id || matchesProvider(prov, key)
+      );
+
+      if (!existingKey) {
         currentConfig.providerConfigs[prov.id] = {
           name: prov.name,
           apiKey: "",
@@ -39,8 +44,18 @@ export function getOffersConfig(): OffersPlatformConfig {
           active: prov.active,
         };
       } else {
-        existing.name = prov.name;
-        existing.active = prov.active;
+        const existing = currentConfig.providerConfigs[existingKey];
+        if (existingKey !== prov.id) {
+          delete currentConfig.providerConfigs[existingKey];
+          currentConfig.providerConfigs[prov.id] = {
+            ...existing,
+            name: prov.name,
+            active: prov.active,
+          };
+        } else {
+          existing.name = prov.name;
+          existing.active = prov.active;
+        }
       }
     }
 
@@ -60,10 +75,15 @@ export async function getOffersConfigAsync(): Promise<OffersPlatformConfig> {
       currentConfig.providerConfigs = {};
     }
 
+    const { matchesProvider } = await import("./providers-store");
     const liveProviders = await getStoredProvidersAsync();
+
     for (const prov of liveProviders) {
-      const existing = currentConfig.providerConfigs[prov.id];
-      if (!existing) {
+      const existingKey = Object.keys(currentConfig.providerConfigs).find(
+        (key) => key === prov.id || matchesProvider(prov, key)
+      );
+
+      if (!existingKey) {
         currentConfig.providerConfigs[prov.id] = {
           name: prov.name,
           apiKey: "",
@@ -71,8 +91,18 @@ export async function getOffersConfigAsync(): Promise<OffersPlatformConfig> {
           active: prov.active,
         };
       } else {
-        existing.name = prov.name;
-        existing.active = prov.active;
+        const existing = currentConfig.providerConfigs[existingKey];
+        if (existingKey !== prov.id) {
+          delete currentConfig.providerConfigs[existingKey];
+          currentConfig.providerConfigs[prov.id] = {
+            ...existing,
+            name: prov.name,
+            active: prov.active,
+          };
+        } else {
+          existing.name = prov.name;
+          existing.active = prov.active;
+        }
       }
     }
 
@@ -81,6 +111,13 @@ export async function getOffersConfigAsync(): Promise<OffersPlatformConfig> {
     console.error("Error loading offers config async:", err);
     return DEFAULT_OFFERS_CONFIG;
   }
+}
+
+export async function syncProvidersWithOffersConfigAsync(): Promise<OffersPlatformConfig> {
+  const config = await getOffersConfigAsync();
+  await setSystemConfig(CONFIG_KEY, FALLBACK_FILE, config);
+  triggerRevalidation();
+  return config;
 }
 
 export async function saveOffersConfigAsync(config: OffersPlatformConfig): Promise<boolean> {

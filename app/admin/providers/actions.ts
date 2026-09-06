@@ -32,7 +32,14 @@ export async function saveProviderAction(provider: StoredProvider) {
   try {
     await verifyAdmin();
     const updated = await addOrUpdateProvider(provider);
+    try {
+      const { syncProvidersWithOffersConfigAsync } = await import("@/lib/offers-config");
+      await syncProvidersWithOffersConfigAsync();
+    } catch (syncErr) {
+      console.error("Failed to sync offers config:", syncErr);
+    }
     revalidatePath("/admin/providers");
+    revalidatePath("/admin/offers-settings");
     revalidatePath("/earn");
     return { success: true, providers: updated };
   } catch (err) {
@@ -47,7 +54,14 @@ export async function deleteProviderAction(id: string) {
   try {
     await verifyAdmin();
     const updated = await deleteStoredProvider(id);
+    try {
+      const { syncProvidersWithOffersConfigAsync } = await import("@/lib/offers-config");
+      await syncProvidersWithOffersConfigAsync();
+    } catch (syncErr) {
+      console.error("Failed to sync offers config:", syncErr);
+    }
     revalidatePath("/admin/providers");
+    revalidatePath("/admin/offers-settings");
     revalidatePath("/earn");
     return { success: true, providers: updated };
   } catch (err) {
@@ -62,7 +76,14 @@ export async function toggleProviderAction(id: string) {
   try {
     await verifyAdmin();
     const updated = await toggleStoredProvider(id);
+    try {
+      const { syncProvidersWithOffersConfigAsync } = await import("@/lib/offers-config");
+      await syncProvidersWithOffersConfigAsync();
+    } catch (syncErr) {
+      console.error("Failed to sync offers config:", syncErr);
+    }
     revalidatePath("/admin/providers");
+    revalidatePath("/admin/offers-settings");
     revalidatePath("/earn");
     return { success: true, providers: updated };
   } catch (err) {

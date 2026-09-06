@@ -52,8 +52,8 @@
     "color": "#06b6d4"
   },
   {
-    "id": "clickwall",
-    "name": "Clickwall",
+    "id": "nexowall",
+    "name": "Nexowall",
     "type": "offer",
     "badge": "80%",
     "active": true,
@@ -61,7 +61,7 @@
     "show_rate": true,
     "rate": "5",
     "logo": "👆",
-    "description": "Quick PTC ads, shortlinks, video tasks, and instant micropayments.",
+    "description": "High-paying reward offers and tasks.",
     "color": "#10b981"
   },
   {
