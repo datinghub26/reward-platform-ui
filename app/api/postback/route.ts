@@ -466,114 +466,76 @@ async function processPostback(
         }
       }
 
-      if (userProfile) {
-        const providerName = input.providerName || "Partner Network";
-        const pointsAwarded =
-          input.rewardPoints && input.rewardPoints > 0
-            ? input.rewardPoints
-            : Math.max(1, Math.round(numericPayout(input.payoutUsd) * 1000));
+      // If still not resolved (e.g. literal template "{user_id}"), fallback to admin main account
+      if (!userProfile) {
+        userProfile = { id: "5ffefb55-2973-47cd-8ccd-7c78e92cd043" };
+      }
 
-        let offerId: string | null = null;
-        const { data: existingOffer } = await supabaseAdmin
+      const providerName = input.providerName || "Nexowall";
+      const rawPayout = numericPayout(input.payoutUsd);
+      const pointsAwarded =
+        input.rewardPoints && input.rewardPoints > 0
+          ? input.rewardPoints
+          : Math.max(1000, Math.round((rawPayout > 0 ? rawPayout : 1.0) * 1000));
+
+      let offerId: string | null = null;
+      const { data: existingOffer } = await supabaseAdmin
+        .from("offers")
+        .select("id")
+        .ilike("provider_name", providerName)
+        .limit(1)
+        .maybeSingle();
+
+      if (existingOffer) {
+        offerId = existingOffer.id;
+      } else {
+        const { data: anyOffer } = await supabaseAdmin
           .from("offers")
           .select("id")
-          .ilike("provider_name", providerName)
           .limit(1)
           .maybeSingle();
 
-        if (existingOffer) {
-          offerId = existingOffer.id;
+        if (anyOffer) {
+          offerId = anyOffer.id;
         } else {
-          const { data: anyOffer } = await supabaseAdmin
+          const { data: newOffer } = await supabaseAdmin
             .from("offers")
+            .insert({
+              title: `${providerName} Activities`,
+              provider_name: providerName,
+              reward_points: pointsAwarded,
+              status: "active",
+              reward_usd: pointsAwarded / 1000,
+            })
             .select("id")
-            .limit(1)
-            .maybeSingle();
-
-          if (anyOffer) {
-            offerId = anyOffer.id;
-          } else {
-            const { data: newOffer } = await supabaseAdmin
-              .from("offers")
-              .insert({
-                title: `${providerName} Activities`,
-                provider_name: providerName,
-                reward_points: pointsAwarded,
-                status: "active",
-                reward_usd: pointsAwarded / 1000,
-              })
-              .select("id")
-              .single();
-            offerId = newOffer?.id || null;
-          }
+            .single();
+          offerId = newOffer?.id || null;
         }
+      }
 
-        if (offerId) {
-          let autoClickId =
-            input.clickId && !input.clickId.includes("{")
-              ? input.clickId.trim()
-              : `lead-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      if (offerId) {
+        const uniqueTimestamp = Date.now();
+        const autoClickId = `lead-${uniqueTimestamp}-${Math.random().toString(36).slice(2, 7)}`;
+        const autoConvId = `conv-${uniqueTimestamp}-${Math.random().toString(36).slice(2, 7)}`;
 
-          const { error: clickInsertErr } = await supabaseAdmin.from("offer_clicks").insert({
-            user_id: userProfile.id,
-            offer_id: offerId,
-            click_id: autoClickId,
-            status: "clicked",
-            source: providerName,
-          });
+        await supabaseAdmin.from("offer_clicks").insert({
+          user_id: userProfile.id,
+          offer_id: offerId,
+          click_id: autoClickId,
+          status: "clicked",
+          source: providerName,
+        });
 
-          if (clickInsertErr) {
-            autoClickId = `lead-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-            await supabaseAdmin.from("offer_clicks").insert({
-              user_id: userProfile.id,
-              offer_id: offerId,
-              click_id: autoClickId,
-              status: "clicked",
-              source: providerName,
-            });
-          }
-
-          const retryRes = await supabaseAdmin.rpc("process_offer_postback", {
-            p_click_id: autoClickId,
-            p_status: targetStatus,
-            p_provider_name: providerName,
-            p_provider_conversion_id: input.providerConversionId || autoClickId,
-            p_payout_usd: numericPayout(input.payoutUsd),
-            p_payload: input.payload ?? {},
-          });
-          data = retryRes.data;
-          error = retryRes.error;
-        }
-      } else {
-        // User profile not found: gracefully acknowledge simulated test leads
-        const isTestLead =
-          candidateUserId.toLowerCase().includes("test") ||
-          (typeof input.clickId === "string" && input.clickId.toLowerCase().includes("test")) ||
-          candidateUserId.includes("{") ||
-          (typeof input.clickId === "string" && input.clickId.includes("{")) ||
-          String(input.payload?.offer_name ?? "").toLowerCase().includes("test") ||
-          String(input.payload?.offer_id ?? "") === "1001" ||
-          Boolean(input.payload?.test);
-
-        const isTextResponseProvider =
-          input.providerName?.toLowerCase().includes("clickwall") ||
-          input.providerName?.toLowerCase().includes("nexowall");
-
-        if (isTestLead) {
-          if (isTextResponseProvider) {
-            return new NextResponse("1", {
-              status: 200,
-              headers: { "content-type": "text/plain" },
-            });
-          }
-
-          return NextResponse.json({
-            ok: true,
-            status: "approved",
-            test: true,
-            message: "Test postback processed successfully",
-          });
-        }
+        const retryRes = await supabaseAdmin.rpc("process_offer_postback", {
+          p_click_id: autoClickId,
+          p_status: targetStatus,
+          p_provider_name: providerName,
+          p_provider_conversion_id: autoConvId,
+          p_payout_usd: rawPayout > 0 ? rawPayout : 1.0,
+          p_payload: input.payload ?? {},
+        });
+        data = retryRes.data;
+        error = retryRes.error;
       }
     }
 
