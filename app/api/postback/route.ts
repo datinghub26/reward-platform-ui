@@ -429,110 +429,147 @@ async function processPostback(
     if (error && error.message.toLowerCase().includes("unknown click_id")) {
       const candidateUserId = (input.userId || input.clickId).trim();
 
-      // Gracefully acknowledge test postbacks from networks (e.g. NexoWall, ClickWall test tool)
-      const isTestLead =
-        candidateUserId.toLowerCase().includes("test") ||
-        (typeof input.clickId === "string" && input.clickId.toLowerCase().includes("test")) ||
-        candidateUserId.includes("{") ||
-        (typeof input.clickId === "string" && input.clickId.includes("{")) ||
-        String(input.payload?.offer_name ?? "").toLowerCase().includes("test") ||
-        String(input.payload?.offer_id ?? "") === "1001" ||
-        candidateUserId === "6" ||
-        Boolean(input.payload?.test);
-
-      const isTextResponseProvider =
-        input.providerName?.toLowerCase().includes("clickwall") ||
-        input.providerName?.toLowerCase().includes("nexowall");
-
-      if (isTestLead) {
-        if (isTextResponseProvider) {
-          return new NextResponse("1", {
-            status: 200,
-            headers: { "content-type": "text/plain" },
-          });
-        }
-
-        return NextResponse.json({
-          ok: true,
-          status: "approved",
-          test: true,
-          message: "Test postback processed successfully",
-        });
-      }
-
+      // Resolve user profile: supports full UUID, UUID prefix (e.g. "6"), or email address
+      let userProfile: { id: string } | null = null;
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
       if (uuidRegex.test(candidateUserId)) {
-        const { data: userProfile } = await supabaseAdmin
+        const { data } = await supabaseAdmin
           .from("user_profiles")
           .select("id")
           .eq("id", candidateUserId)
           .maybeSingle();
+        userProfile = data;
+      } else if (candidateUserId && candidateUserId !== "test" && !candidateUserId.includes("{")) {
+        if (candidateUserId.includes("@")) {
+          const { data: authList } = await supabaseAdmin.auth.admin.listUsers();
+          const matched = (authList?.users ?? []).find(
+            (u) => u.email?.toLowerCase() === candidateUserId.toLowerCase()
+          );
+          if (matched) {
+            userProfile = { id: matched.id };
+          }
+        } else {
+          const { data: allProfiles } = await supabaseAdmin
+            .from("user_profiles")
+            .select("id")
+            .limit(100);
+          const matched = (allProfiles ?? []).find((p) =>
+            p.id.toLowerCase().startsWith(candidateUserId.toLowerCase())
+          );
+          if (matched) {
+            userProfile = { id: matched.id };
+          }
+        }
+      }
 
-        if (userProfile) {
-          const providerName = input.providerName || "Partner Network";
-          const pointsAwarded =
-            input.rewardPoints && input.rewardPoints > 0
-              ? input.rewardPoints
-              : Math.max(1, Math.round(numericPayout(input.payoutUsd) * 1000));
+      if (userProfile) {
+        const providerName = input.providerName || "Partner Network";
+        const pointsAwarded =
+          input.rewardPoints && input.rewardPoints > 0
+            ? input.rewardPoints
+            : Math.max(1, Math.round(numericPayout(input.payoutUsd) * 1000));
 
-          let offerId: string | null = null;
-          const { data: existingOffer } = await supabaseAdmin
+        let offerId: string | null = null;
+        const { data: existingOffer } = await supabaseAdmin
+          .from("offers")
+          .select("id")
+          .ilike("provider_name", providerName)
+          .limit(1)
+          .maybeSingle();
+
+        if (existingOffer) {
+          offerId = existingOffer.id;
+        } else {
+          const { data: anyOffer } = await supabaseAdmin
             .from("offers")
             .select("id")
-            .ilike("provider_name", providerName)
             .limit(1)
             .maybeSingle();
 
-          if (existingOffer) {
-            offerId = existingOffer.id;
+          if (anyOffer) {
+            offerId = anyOffer.id;
           } else {
-            const { data: anyOffer } = await supabaseAdmin
+            const { data: newOffer } = await supabaseAdmin
               .from("offers")
+              .insert({
+                title: `${providerName} Activities`,
+                provider_name: providerName,
+                reward_points: pointsAwarded,
+                status: "active",
+                reward_usd: pointsAwarded / 1000,
+              })
               .select("id")
-              .limit(1)
-              .maybeSingle();
-
-            if (anyOffer) {
-              offerId = anyOffer.id;
-            } else {
-              const { data: newOffer } = await supabaseAdmin
-                .from("offers")
-                .insert({
-                  title: `${providerName} Activities`,
-                  provider_name: providerName,
-                  reward_points: pointsAwarded,
-                  status: "active",
-                  reward_usd: pointsAwarded / 1000,
-                })
-                .select("id")
-                .single();
-              offerId = newOffer?.id || null;
-            }
+              .single();
+            offerId = newOffer?.id || null;
           }
+        }
 
-          if (offerId) {
-            const autoClickId = input.clickId.trim();
-            const { error: clickInsertErr } = await supabaseAdmin.from("offer_clicks").insert({
+        if (offerId) {
+          let autoClickId =
+            input.clickId && !input.clickId.includes("{")
+              ? input.clickId.trim()
+              : `lead-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+
+          const { error: clickInsertErr } = await supabaseAdmin.from("offer_clicks").insert({
+            user_id: userProfile.id,
+            offer_id: offerId,
+            click_id: autoClickId,
+            status: "clicked",
+            source: providerName,
+          });
+
+          if (clickInsertErr) {
+            autoClickId = `lead-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+            await supabaseAdmin.from("offer_clicks").insert({
               user_id: userProfile.id,
               offer_id: offerId,
               click_id: autoClickId,
               status: "clicked",
               source: providerName,
             });
-
-            if (!clickInsertErr) {
-              const retryRes = await supabaseAdmin.rpc("process_offer_postback", {
-                p_click_id: autoClickId,
-                p_status: targetStatus,
-                p_provider_name: providerName,
-                p_provider_conversion_id: input.providerConversionId,
-                p_payout_usd: numericPayout(input.payoutUsd),
-                p_payload: input.payload ?? {},
-              });
-              data = retryRes.data;
-              error = retryRes.error;
-            }
           }
+
+          const retryRes = await supabaseAdmin.rpc("process_offer_postback", {
+            p_click_id: autoClickId,
+            p_status: targetStatus,
+            p_provider_name: providerName,
+            p_provider_conversion_id: input.providerConversionId || autoClickId,
+            p_payout_usd: numericPayout(input.payoutUsd),
+            p_payload: input.payload ?? {},
+          });
+          data = retryRes.data;
+          error = retryRes.error;
+        }
+      } else {
+        // User profile not found: gracefully acknowledge simulated test leads
+        const isTestLead =
+          candidateUserId.toLowerCase().includes("test") ||
+          (typeof input.clickId === "string" && input.clickId.toLowerCase().includes("test")) ||
+          candidateUserId.includes("{") ||
+          (typeof input.clickId === "string" && input.clickId.includes("{")) ||
+          String(input.payload?.offer_name ?? "").toLowerCase().includes("test") ||
+          String(input.payload?.offer_id ?? "") === "1001" ||
+          Boolean(input.payload?.test);
+
+        const isTextResponseProvider =
+          input.providerName?.toLowerCase().includes("clickwall") ||
+          input.providerName?.toLowerCase().includes("nexowall");
+
+        if (isTestLead) {
+          if (isTextResponseProvider) {
+            return new NextResponse("1", {
+              status: 200,
+              headers: { "content-type": "text/plain" },
+            });
+          }
+
+          return NextResponse.json({
+            ok: true,
+            status: "approved",
+            test: true,
+            message: "Test postback processed successfully",
+          });
         }
       }
     }
