@@ -1,13 +1,18 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import PostbackHub, { ProviderAuth } from "./PostbackHub";
+import { headers } from "next/headers";
+import { getAppUrl } from "@/lib/url-helper";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminPostbackPage() {
-  const { data: rawProviders, error: providersError } = await supabaseAdmin
-    .from("provider_postback_auth")
-    .select("id, provider_name, api_secret, enabled, created_at")
-    .order("created_at", { ascending: false });
+  const [headersList, { data: rawProviders, error: providersError }] = await Promise.all([
+    headers(),
+    supabaseAdmin
+      .from("provider_postback_auth")
+      .select("id, provider_name, api_secret, enabled, created_at")
+      .order("created_at", { ascending: false }),
+  ]);
 
   if (providersError) {
     return (
@@ -29,7 +34,7 @@ export default async function AdminPostbackPage() {
   }));
 
   const globalSecret = process.env.POSTBACK_SECRET || "rewardnova-secure-postback-secret";
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const appUrl = getAppUrl(headersList);
 
   return (
     <div>

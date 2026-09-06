@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import Brand from "./Brand";
 import SignOutButton from "./SignOutButton";
 import { createClient } from "@/lib/supabase/client";
+import { playNotificationSound } from "@/lib/sound";
 
 export default function AppSidebar({
   active,
@@ -19,6 +20,15 @@ export default function AppSidebar({
     const supabase = createClient();
     let channel: ReturnType<typeof supabase.channel> | null = null;
     let isMounted = true;
+
+    const handleUnreadChange = (e: Event) => {
+      const customEvent = e as CustomEvent<{ count: number }>;
+      if (customEvent.detail && typeof customEvent.detail.count === "number") {
+        setUnreadNotifications(customEvent.detail.count);
+      }
+    };
+
+    window.addEventListener("notification-unread-changed", handleUnreadChange);
 
     async function loadSidebarData() {
       const {
@@ -59,7 +69,10 @@ export default function AppSidebar({
             table: "notifications",
             filter: `user_id=eq.${user.id}`,
           },
-          () => {
+          (payload) => {
+            if (payload.eventType === "INSERT") {
+              playNotificationSound();
+            }
             refreshUnread();
           }
         )
@@ -70,6 +83,7 @@ export default function AppSidebar({
 
     return () => {
       isMounted = false;
+      window.removeEventListener("notification-unread-changed", handleUnreadChange);
       if (channel) {
         supabase.removeChannel(channel);
       }
@@ -214,7 +228,36 @@ export default function AppSidebar({
           }
           href="/notifications"
         >
-          <span>🔔</span>
+          <span style={{ position: "relative", display: "inline-block", margin: "0 auto 3px" }}>
+            <span style={{ display: "inline-block", fontSize: "18px" }}>🔔</span>
+            {unreadNotifications > 0 && (
+              <span
+                style={{
+                  position: "absolute",
+                  top: "-4px",
+                  right: "-8px",
+                  minWidth: "16px",
+                  height: "16px",
+                  padding: "0 4px",
+                  background: "#ff334b",
+                  color: "#ffffff",
+                  fontSize: "10px",
+                  fontWeight: "800",
+                  borderRadius: "999px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  lineHeight: "1",
+                  border: "2px solid #0a1626",
+                  boxShadow: "0 2px 6px rgba(255,51,75,0.4)",
+                  zIndex: 2,
+                }}
+                aria-label={`${unreadNotifications} unread notifications`}
+              >
+                {unreadNotifications > 99 ? "99+" : unreadNotifications}
+              </span>
+            )}
+          </span>
           Notifications
         </Link>
 

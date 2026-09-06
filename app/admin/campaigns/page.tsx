@@ -1,11 +1,11 @@
 import React from "react";
 import CampaignManager from "./CampaignManager";
-import { getCampaigns } from "@/lib/campaigns";
+import { getCampaignsAsync } from "@/lib/campaigns";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminCampaignsPage() {
-  const campaigns = getCampaigns();
+  const campaigns = await getCampaignsAsync();
 
   return <CampaignManager initialCampaigns={campaigns} />;
 }

@@ -1,12 +1,12 @@
 import React from "react";
-import { getLevelTiers, calculateUserLevel } from "@/lib/levels";
+import { getLevelTiersAsync, calculateUserLevel } from "@/lib/levels";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import LevelsManager from "./LevelsManager";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminLevelsPage() {
-  const tiers = getLevelTiers();
+  const tiers = await getLevelTiersAsync();
 
   // Fetch real users to calculate levels distribution
   const { data: profiles } = await supabaseAdmin

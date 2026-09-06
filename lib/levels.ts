@@ -1,6 +1,5 @@
-import fs from "fs";
-import path from "path";
 import { supabaseAdmin } from "./supabase/admin";
+import { getSystemConfig, setSystemConfig, getLocalFallbackConfig } from "./system-config";
 
 export interface LevelTier {
   level: number;
@@ -11,7 +10,8 @@ export interface LevelTier {
   badgeColor?: string;
 }
 
-const LEVELS_FILE = path.join(process.cwd(), "data", "levels-config.json");
+const CONFIG_KEY = "levels_config";
+const FALLBACK_FILE = "levels-config.json";
 
 function triggerRevalidation() {
   try {
@@ -26,23 +26,25 @@ function triggerRevalidation() {
 }
 
 export function getLevelTiers(): LevelTier[] {
-  try {
-    if (fs.existsSync(LEVELS_FILE)) {
-      const raw = fs.readFileSync(LEVELS_FILE, "utf8").replace(/^\uFEFF/, "");
-      const data = JSON.parse(raw);
-      if (Array.isArray(data.levels)) {
-        return data.levels.sort((a: LevelTier, b: LevelTier) => a.level - b.level);
-      }
-    }
-  } catch (err) {
-    console.error("Error reading levels-config.json:", err);
+  const data = getLocalFallbackConfig<{ levels: LevelTier[] }>(FALLBACK_FILE, { levels: [] });
+  if (Array.isArray(data.levels)) {
+    return data.levels.sort((a: LevelTier, b: LevelTier) => a.level - b.level);
   }
   return [];
 }
 
-export function saveLevelTier(tier: LevelTier): boolean {
+export async function getLevelTiersAsync(): Promise<LevelTier[]> {
+  const fallback = getLevelTiers();
+  const data = await getSystemConfig<{ levels: LevelTier[] }>(CONFIG_KEY, FALLBACK_FILE, { levels: fallback });
+  if (Array.isArray(data.levels)) {
+    return data.levels.sort((a: LevelTier, b: LevelTier) => a.level - b.level);
+  }
+  return [];
+}
+
+export async function saveLevelTierAsync(tier: LevelTier): Promise<boolean> {
   try {
-    const tiers = getLevelTiers();
+    const tiers = await getLevelTiersAsync();
     const index = tiers.findIndex((t) => t.level === tier.level);
     if (index >= 0) {
       tiers[index] = tier;
@@ -51,32 +53,39 @@ export function saveLevelTier(tier: LevelTier): boolean {
     }
     tiers.sort((a, b) => a.level - b.level);
 
-    const dir = path.dirname(LEVELS_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(LEVELS_FILE, JSON.stringify({ levels: tiers }, null, 2), "utf8");
+    const ok = await setSystemConfig(CONFIG_KEY, FALLBACK_FILE, { levels: tiers });
     triggerRevalidation();
-    return true;
+    return ok;
   } catch (err) {
     console.error("Error saving level tier:", err);
     return false;
   }
 }
 
-export function deleteLevelTier(levelNumber: number): boolean {
+export function saveLevelTier(tier: LevelTier): boolean {
+  saveLevelTierAsync(tier).catch((e) => console.error("Async saveLevelTier error:", e));
+  return true;
+}
+
+export async function deleteLevelTierAsync(levelNumber: number): Promise<boolean> {
   try {
-    const tiers = getLevelTiers();
+    const tiers = await getLevelTiersAsync();
     const filtered = tiers.filter((t) => t.level !== levelNumber);
     if (filtered.length !== tiers.length) {
-      fs.writeFileSync(LEVELS_FILE, JSON.stringify({ levels: filtered }, null, 2), "utf8");
+      const ok = await setSystemConfig(CONFIG_KEY, FALLBACK_FILE, { levels: filtered });
       triggerRevalidation();
-      return true;
+      return ok;
     }
+    return true;
   } catch (err) {
     console.error("Error deleting level tier:", err);
+    return false;
   }
-  return false;
+}
+
+export function deleteLevelTier(levelNumber: number): boolean {
+  deleteLevelTierAsync(levelNumber).catch((e) => console.error("Async deleteLevelTier error:", e));
+  return true;
 }
 
 export function calculateUserLevel(lifetimePoints: number): {
@@ -210,4 +219,3 @@ export async function processLevelMultiplierBonus(
     return { awarded: false, reason: "exception" };
   }
 }
-

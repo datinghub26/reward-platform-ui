@@ -4,8 +4,10 @@ import fs from "fs";
 import path from "path";
 import { revalidatePath } from "next/cache";
 import {
-  getPlatformSettings,
+  getPlatformSettingsAsync,
+  updatePlatformSettingsAsync,
   updatePlatformSettings,
+  DEFAULT_SETTINGS,
   PlatformSettings,
 } from "@/lib/settings";
 import { logAdminAudit } from "@/lib/audit-logger";
@@ -15,7 +17,7 @@ export async function getSettingsAction(): Promise<{
   settings: PlatformSettings;
 }> {
   try {
-    const settings = getPlatformSettings();
+    const settings = await getPlatformSettingsAsync();
     return { success: true, settings };
   } catch (err) {
     console.error("getSettingsAction error:", err);
@@ -130,7 +132,7 @@ export async function saveSettingsAction(
       sanitized.toneFileName = updates.toneFileName;
     }
 
-    const saved = updatePlatformSettings(sanitized);
+    const saved = await updatePlatformSettingsAsync(sanitized);
 
     await logAdminAudit({
       action: "update_settings",
@@ -148,9 +150,10 @@ export async function saveSettingsAction(
     };
   } catch (err) {
     console.error("saveSettingsAction error:", err);
+    const fallbackSettings = await getPlatformSettingsAsync().catch(() => DEFAULT_SETTINGS);
     return {
       success: false,
-      settings: getPlatformSettings(),
+      settings: fallbackSettings,
       message: err instanceof Error ? err.message : "Failed to save settings",
     };
   }

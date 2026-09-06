@@ -1,5 +1,4 @@
-import fs from "fs";
-import path from "path";
+import { getSystemConfig, setSystemConfig, getLocalFallbackConfig } from "./system-config";
 
 export interface NavbarButton {
   id: string;
@@ -12,7 +11,8 @@ export interface NavbarButton {
   active: boolean;
 }
 
-const NAVBAR_BUTTONS_FILE = path.join(process.cwd(), "data", "navbar-buttons.json");
+const CONFIG_KEY = "navbar_buttons";
+const FALLBACK_FILE = "navbar-buttons.json";
 
 function triggerRevalidation() {
   try {
@@ -28,27 +28,34 @@ function triggerRevalidation() {
 }
 
 export function getNavbarButtons(): NavbarButton[] {
-  try {
-    if (fs.existsSync(NAVBAR_BUTTONS_FILE)) {
-      const raw = fs.readFileSync(NAVBAR_BUTTONS_FILE, "utf8").replace(/^\uFEFF/, "");
-      const data = JSON.parse(raw);
-      if (Array.isArray(data.buttons)) {
-        return data.buttons.sort((a: NavbarButton, b: NavbarButton) => a.order - b.order);
-      }
-    }
-  } catch (err) {
-    console.error("Error reading navbar-buttons.json:", err);
+  const data = getLocalFallbackConfig<{ buttons: NavbarButton[] }>(FALLBACK_FILE, { buttons: [] });
+  if (Array.isArray(data.buttons)) {
+    return data.buttons.sort((a, b) => a.order - b.order);
   }
   return [];
+}
+
+export async function getNavbarButtonsAsync(): Promise<NavbarButton[]> {
+  const fallback = getNavbarButtons();
+  const data = await getSystemConfig<{ buttons: NavbarButton[] }>(CONFIG_KEY, FALLBACK_FILE, { buttons: fallback });
+  if (Array.isArray(data.buttons)) {
+    return data.buttons.sort((a, b) => a.order - b.order);
+  }
+  return [];
+}
+
+export async function getActiveNavbarButtonsAsync(): Promise<NavbarButton[]> {
+  const all = await getNavbarButtonsAsync();
+  return all.filter((b) => b.active);
 }
 
 export function getActiveNavbarButtons(): NavbarButton[] {
   return getNavbarButtons().filter((b) => b.active);
 }
 
-export function saveNavbarButton(button: NavbarButton): boolean {
+export async function saveNavbarButtonAsync(button: NavbarButton): Promise<boolean> {
   try {
-    const buttons = getNavbarButtons();
+    const buttons = await getNavbarButtonsAsync();
     const index = buttons.findIndex((b) => b.id === button.id);
     if (index >= 0) {
       buttons[index] = {
@@ -66,46 +73,59 @@ export function saveNavbarButton(button: NavbarButton): boolean {
     }
     buttons.sort((a, b) => a.order - b.order);
 
-    const dir = path.dirname(NAVBAR_BUTTONS_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(NAVBAR_BUTTONS_FILE, JSON.stringify({ buttons }, null, 2), "utf8");
+    const ok = await setSystemConfig(CONFIG_KEY, FALLBACK_FILE, { buttons });
     triggerRevalidation();
-    return true;
+    return ok;
   } catch (err) {
     console.error("Error saving navbar button:", err);
     return false;
   }
 }
 
-export function deleteNavbarButton(id: string): boolean {
-  try {
-    const buttons = getNavbarButtons();
-    const filtered = buttons.filter((b) => b.id !== id);
-    if (filtered.length !== buttons.length) {
-      fs.writeFileSync(NAVBAR_BUTTONS_FILE, JSON.stringify({ buttons: filtered }, null, 2), "utf8");
-      triggerRevalidation();
-      return true;
-    }
-  } catch (err) {
-    console.error("Error deleting navbar button:", err);
-  }
-  return false;
+export function saveNavbarButton(button: NavbarButton): boolean {
+  saveNavbarButtonAsync(button).catch((e) => console.error("Async saveNavbarButton error:", e));
+  return true;
 }
 
-export function toggleNavbarButton(id: string, activeState?: boolean): boolean {
+export async function deleteNavbarButtonAsync(id: string): Promise<boolean> {
   try {
-    const buttons = getNavbarButtons();
+    const buttons = await getNavbarButtonsAsync();
+    const filtered = buttons.filter((b) => b.id !== id);
+    if (filtered.length !== buttons.length) {
+      const ok = await setSystemConfig(CONFIG_KEY, FALLBACK_FILE, { buttons: filtered });
+      triggerRevalidation();
+      return ok;
+    }
+    return true;
+  } catch (err) {
+    console.error("Error deleting navbar button:", err);
+    return false;
+  }
+}
+
+export function deleteNavbarButton(id: string): boolean {
+  deleteNavbarButtonAsync(id).catch((e) => console.error("Async deleteNavbarButton error:", e));
+  return true;
+}
+
+export async function toggleNavbarButtonAsync(id: string, activeState?: boolean): Promise<boolean> {
+  try {
+    const buttons = await getNavbarButtonsAsync();
     const item = buttons.find((b) => b.id === id);
     if (item) {
       item.active = activeState !== undefined ? activeState : !item.active;
-      fs.writeFileSync(NAVBAR_BUTTONS_FILE, JSON.stringify({ buttons }, null, 2), "utf8");
+      const ok = await setSystemConfig(CONFIG_KEY, FALLBACK_FILE, { buttons });
       triggerRevalidation();
-      return true;
+      return ok;
     }
+    return false;
   } catch (err) {
     console.error("Error toggling navbar button:", err);
+    return false;
   }
-  return false;
+}
+
+export function toggleNavbarButton(id: string, activeState?: boolean): boolean {
+  toggleNavbarButtonAsync(id, activeState).catch((e) => console.error("Async toggleNavbarButton error:", e));
+  return true;
 }

@@ -1,5 +1,4 @@
-import fs from "fs";
-import path from "path";
+import { getSystemConfig, setSystemConfig, getLocalFallbackConfig } from "./system-config";
 
 export type PlatformSettings = {
   // Protection
@@ -59,11 +58,11 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
   enableIpProtection: false,
   autoBlockAccount: false,
   customDomain: false,
-  domains: "gmail.com,yahoo.com,outlook.com",
-  verifyEmailToWithdraw: false,
+  domains: "",
+  verifyEmailToWithdraw: true,
 
-  enablePendingLeads: true,
-  pendingPointsThreshold: 4000,
+  enablePendingLeads: false,
+  pendingPointsThreshold: 5000,
 
   fraudLabsApiKey: "",
   ipQualityScoreKey: "",
@@ -94,22 +93,38 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
   updatedAt: new Date().toISOString(),
 };
 
-const SETTINGS_FILE = path.join(process.cwd(), "data", "settings.json");
+const CONFIG_KEY = "platform_settings";
+const FALLBACK_FILE = "settings.json";
 
 export function getPlatformSettings(): PlatformSettings {
-  try {
-    if (fs.existsSync(SETTINGS_FILE)) {
-      const raw = fs.readFileSync(SETTINGS_FILE, "utf-8").replace(/^\uFEFF/, "");
-      const parsed = JSON.parse(raw);
-      return {
-        ...DEFAULT_SETTINGS,
-        ...parsed,
-      };
-    }
-  } catch (err) {
-    console.error("Failed to read platform settings from disk:", err);
-  }
-  return { ...DEFAULT_SETTINGS };
+  const parsed = getLocalFallbackConfig<Partial<PlatformSettings>>(FALLBACK_FILE, {});
+  return {
+    ...DEFAULT_SETTINGS,
+    ...parsed,
+  };
+}
+
+export async function getPlatformSettingsAsync(): Promise<PlatformSettings> {
+  const fallback = getPlatformSettings();
+  const parsed = await getSystemConfig<Partial<PlatformSettings>>(CONFIG_KEY, FALLBACK_FILE, fallback);
+  return {
+    ...DEFAULT_SETTINGS,
+    ...parsed,
+  };
+}
+
+export async function updatePlatformSettingsAsync(
+  partial: Partial<PlatformSettings>
+): Promise<PlatformSettings> {
+  const current = await getPlatformSettingsAsync();
+  const updated: PlatformSettings = {
+    ...current,
+    ...partial,
+    updatedAt: new Date().toISOString(),
+  };
+
+  await setSystemConfig(CONFIG_KEY, FALLBACK_FILE, updated);
+  return updated;
 }
 
 export function updatePlatformSettings(
@@ -122,16 +137,6 @@ export function updatePlatformSettings(
     updatedAt: new Date().toISOString(),
   };
 
-  try {
-    const dir = path.dirname(SETTINGS_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(updated, null, 2), "utf-8");
-  } catch (err) {
-    console.error("Failed to persist platform settings to disk:", err);
-    throw new Error("Failed to persist platform settings");
-  }
-
+  updatePlatformSettingsAsync(partial).catch((e) => console.error("Async updatePlatformSettings error:", e));
   return updated;
 }

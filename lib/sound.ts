@@ -1,7 +1,7 @@
 /**
  * RewardNova Audio Utilities
- * Synthesizes a sparkling, crisp, pleasant coin chime using the browser's Web Audio API.
- * Designed to sound like an authentic reward / cash register chime without harshness.
+ * Synthesizes sparkling, crisp, pleasant chimes using the browser's Web Audio API
+ * and plays audio files with graceful fallback.
  */
 let lastPlayedTime = 0;
 
@@ -9,24 +9,20 @@ export function playRewardSound(customUrl?: string) {
   if (typeof window === "undefined") return;
 
   const now = Date.now();
-  if (now - lastPlayedTime < 1500) {
-    return; // Prevent duplicate rapid playback within 1.5s
+  if (now - lastPlayedTime < 1000) {
+    return; // Prevent duplicate rapid playback
   }
   lastPlayedTime = now;
 
-  // Try playing the server-hosted notification sound first
   try {
     const soundUrl = customUrl || "/assets/sounds/notification.mp3";
     const audio = new Audio(soundUrl);
-    audio.volume = 0.7;
+    audio.volume = 0.75;
     const playPromise = audio.play();
     if (playPromise !== undefined) {
       playPromise
-        .then(() => {
-          // Played successfully via Audio element
-        })
+        .then(() => {})
         .catch(() => {
-          // Fallback to Web Audio oscillator chime
           playSynthesizedChime();
         });
       return;
@@ -38,8 +34,13 @@ export function playRewardSound(customUrl?: string) {
   playSynthesizedChime();
 }
 
+export function playNotificationSound() {
+  playRewardSound();
+}
+
 function playSynthesizedChime() {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const AudioContextClass =
       window.AudioContext ||
       (window as unknown as { webkitAudioContext: typeof AudioContext })
@@ -71,7 +72,6 @@ function playSynthesizedChime() {
       osc.type = "sine";
       osc.frequency.setValueAtTime(freq, now + time);
 
-      // Fast attack, smooth musical decay
       gainNode.gain.setValueAtTime(0.0001, now + time);
       gainNode.gain.linearRampToValueAtTime(gain, now + time + 0.012);
       gainNode.gain.exponentialRampToValueAtTime(0.0001, now + time + duration);

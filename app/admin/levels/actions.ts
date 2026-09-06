@@ -1,6 +1,6 @@
 "use server";
 
-import { LevelTier, saveLevelTier, deleteLevelTier } from "@/lib/levels";
+import { LevelTier, saveLevelTierAsync, deleteLevelTierAsync } from "@/lib/levels";
 import { logAdminAudit } from "@/lib/audit-logger";
 
 export async function saveLevelTierAction(tier: LevelTier) {
@@ -12,7 +12,7 @@ export async function saveLevelTierAction(tier: LevelTier) {
       return { success: false, error: "Level must be 1 or higher." };
     }
 
-    const ok = saveLevelTier({
+    const ok = await saveLevelTierAsync({
       ...tier,
       requiredPoints: Number(tier.requiredPoints) || 0,
       multiplierBonus: Number(tier.multiplierBonus) || 0,
@@ -41,7 +41,7 @@ export async function deleteLevelTierAction(levelNumber: number) {
       return { success: false, error: "Base Level 1 cannot be deleted." };
     }
 
-    const ok = deleteLevelTier(levelNumber);
+    const ok = await deleteLevelTierAsync(levelNumber);
     if (!ok) {
       return { success: false, error: "Failed to delete level tier." };
     }

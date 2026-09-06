@@ -1,7 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { PromoCode, savePromoCode, deletePromoCode, getPromoCodes } from "@/lib/bonuses";
+import {
+  PromoCode,
+  savePromoCodeAsync,
+  deletePromoCodeAsync,
+  getPromoCodesAsync,
+} from "@/lib/bonuses";
 import { logAdminAudit } from "@/lib/audit-logger";
 
 export async function savePromoCodeAction(promo: PromoCode) {
@@ -13,7 +18,7 @@ export async function savePromoCodeAction(promo: PromoCode) {
       return { success: false, error: "Reward points must be greater than 0." };
     }
 
-    const ok = savePromoCode(promo);
+    const ok = await savePromoCodeAsync(promo);
     if (!ok) {
       return { success: false, error: "Failed to save promo code." };
     }
@@ -33,14 +38,14 @@ export async function savePromoCodeAction(promo: PromoCode) {
 
 export async function togglePromoCodeStatusAction(id: string, active: boolean) {
   try {
-    const codes = getPromoCodes();
+    const codes = await getPromoCodesAsync();
     const target = codes.find((c) => c.id === id);
     if (!target) {
       return { success: false, error: "Promo code not found." };
     }
 
     target.active = active;
-    savePromoCode(target);
+    await savePromoCodeAsync(target);
 
     await logAdminAudit({
       action: "toggle_promo_code",
@@ -57,7 +62,7 @@ export async function togglePromoCodeStatusAction(id: string, active: boolean) {
 
 export async function deletePromoCodeAction(id: string) {
   try {
-    const ok = deletePromoCode(id);
+    const ok = await deletePromoCodeAsync(id);
     if (!ok) {
       return { success: false, error: "Failed to delete promo code." };
     }

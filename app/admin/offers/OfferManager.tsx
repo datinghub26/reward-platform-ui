@@ -65,7 +65,7 @@ export default function OfferManager({
     setRewardPoints("5000");
     setRewardUsd("5.00");
     setIcon("🎁");
-    setTrackingUrl("http://localhost:3000/demo-provider?click_id={click_id}");
+    setTrackingUrl("https://www.rewardnova.shop/demo-provider?click_id={click_id}");
     setCountriesInput("ALL");
     setDevices(["Desktop", "Mobile"]);
     setDescription("Complete the qualifying activity to receive your reward.");
@@ -157,7 +157,13 @@ export default function OfferManager({
     setOffers((prev) =>
       prev.map((o) => (o.id === offer.id ? { ...o, status: nextStatus } : o))
     );
-    await toggleOfferStatus(offer.id, offer.status);
+    const res = await toggleOfferStatus(offer.id, offer.status);
+    if (!res?.success) {
+      setOffers((prev) =>
+        prev.map((o) => (o.id === offer.id ? { ...o, status: offer.status } : o))
+      );
+      alert(res?.error || "Failed to update offer status.");
+    }
     router.refresh();
   }
 
@@ -165,9 +171,13 @@ export default function OfferManager({
     if (!window.confirm(`Are you sure you want to delete offer "${offer.title}"?`)) {
       return;
     }
-    setOffers((prev) => prev.filter((o) => o.id !== offer.id));
-    await deleteOffer(offer.id);
-    router.refresh();
+    const res = await deleteOffer(offer.id);
+    if (res?.success) {
+      setOffers((prev) => prev.filter((o) => o.id !== offer.id));
+      router.refresh();
+    } else {
+      alert(res?.error || "Failed to delete offer.");
+    }
   }
 
   const filteredOffers = offers.filter((item) => {

@@ -2,9 +2,9 @@
 
 import {
   NavbarButton,
-  saveNavbarButton,
-  deleteNavbarButton,
-  toggleNavbarButton,
+  saveNavbarButtonAsync,
+  deleteNavbarButtonAsync,
+  toggleNavbarButtonAsync,
 } from "@/lib/navbar-buttons";
 import { logAdminAudit } from "@/lib/audit-logger";
 
@@ -29,7 +29,7 @@ export async function saveNavbarButtonAction(button: NavbarButton) {
       active: button.active !== undefined ? Boolean(button.active) : true,
     };
 
-    const ok = saveNavbarButton(cleanButton);
+    const ok = await saveNavbarButtonAsync(cleanButton);
     if (!ok) {
       return { success: false, error: "Failed to save navbar button." };
     }
@@ -55,7 +55,7 @@ export async function deleteNavbarButtonAction(id: string, label?: string) {
       return { success: false, error: "Button ID is required." };
     }
 
-    const ok = deleteNavbarButton(id);
+    const ok = await deleteNavbarButtonAsync(id);
     if (!ok) {
       return { success: false, error: "Failed to delete navbar button." };
     }
@@ -81,7 +81,7 @@ export async function toggleNavbarButtonAction(id: string, active: boolean, labe
       return { success: false, error: "Button ID is required." };
     }
 
-    const ok = toggleNavbarButton(id, active);
+    const ok = await toggleNavbarButtonAsync(id, active);
     if (!ok) {
       return { success: false, error: "Failed to toggle navbar button state." };
     }

@@ -1,15 +1,15 @@
 "use server";
 
 import {
-  getCampaigns,
-  saveCampaign,
-  deleteCampaign,
+  getCampaignsAsync,
+  saveCampaignAsync,
+  deleteCampaignAsync,
   Campaign,
 } from "@/lib/campaigns";
 
 export async function getCampaignsAction() {
   try {
-    const campaigns = getCampaigns();
+    const campaigns = await getCampaignsAsync();
     return { success: true, campaigns };
   } catch (err) {
     console.error("getCampaignsAction error:", err);
@@ -47,9 +47,9 @@ export async function saveCampaignAction(data: {
       createdAt: new Date().toISOString(),
     };
 
-    const saved = saveCampaign(campaign);
+    const saved = await saveCampaignAsync(campaign);
     if (!saved) {
-      return { success: false, error: "Failed to write campaign data" };
+      return { success: false, error: "Failed to save campaign data" };
     }
 
     return {
@@ -71,14 +71,14 @@ export async function toggleCampaignStatusAction(
   newStatus: "active" | "scheduled" | "completed" | "paused"
 ) {
   try {
-    const campaigns = getCampaigns();
+    const campaigns = await getCampaignsAsync();
     const target = campaigns.find((c) => c.id === id);
     if (!target) {
       return { success: false, error: "Campaign not found" };
     }
 
     target.status = newStatus;
-    const ok = saveCampaign(target);
+    const ok = await saveCampaignAsync(target);
     return {
       success: ok,
       message: `Campaign status updated to ${newStatus}`,
@@ -91,7 +91,7 @@ export async function toggleCampaignStatusAction(
 
 export async function deleteCampaignAction(id: string) {
   try {
-    const ok = deleteCampaign(id);
+    const ok = await deleteCampaignAsync(id);
     return {
       success: ok,
       message: ok ? "Campaign deleted successfully" : "Campaign not found",

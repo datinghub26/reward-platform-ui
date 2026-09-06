@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   addProviderCredential,
@@ -30,6 +30,18 @@ export default function PostbackHub({
   const [providers, setProviders] = useState<ProviderAuth[]>(initialProviders);
   const [visibleSecrets, setVisibleSecrets] = useState<Record<string, boolean>>({});
   const [copiedUrl, setCopiedUrl] = useState(false);
+  const [clientOrigin, setClientOrigin] = useState<string>("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setClientOrigin(window.location.origin);
+    }
+  }, []);
+
+  const effectiveBaseUrl =
+    clientOrigin && !clientOrigin.includes("localhost")
+      ? clientOrigin
+      : (appUrl && !appUrl.includes("localhost") ? appUrl : "https://www.rewardnova.shop");
 
   // New Provider Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -46,7 +58,7 @@ export default function PostbackHub({
   const [simulating, setSimulating] = useState(false);
   const [simResult, setSimResult] = useState<unknown | null>(null);
 
-  const canonicalUrl = `${appUrl}/api/postback?click_id={click_id}&status=1&token=${globalSecret}`;
+  const canonicalUrl = `${effectiveBaseUrl}/api/postback?click_id={click_id}&status=1&token=${globalSecret}`;
 
   function copyPostbackUrl() {
     navigator.clipboard.writeText(canonicalUrl);

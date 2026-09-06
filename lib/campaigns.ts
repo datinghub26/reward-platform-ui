@@ -1,5 +1,4 @@
-import fs from "fs";
-import path from "path";
+import { getSystemConfig, setSystemConfig, getLocalFallbackConfig } from "./system-config";
 
 export interface Campaign {
   id: string;
@@ -26,8 +25,10 @@ export interface CampaignParticipant {
   joinedDate: string;
 }
 
-const CAMPAIGNS_FILE = path.join(process.cwd(), "data", "campaigns.json");
-const PARTICIPANTS_FILE = path.join(process.cwd(), "data", "campaign-users.json");
+const CONFIG_KEY = "campaigns";
+const FALLBACK_FILE = "campaigns.json";
+const USERS_CONFIG_KEY = "campaign_users";
+const USERS_FALLBACK_FILE = "campaign-users.json";
 
 function triggerRevalidation() {
   try {
@@ -42,16 +43,25 @@ function triggerRevalidation() {
 }
 
 export function getCampaigns(): Campaign[] {
-  try {
-    if (fs.existsSync(CAMPAIGNS_FILE)) {
-      const raw = fs.readFileSync(CAMPAIGNS_FILE, "utf8").replace(/^\uFEFF/, "");
-      const data = JSON.parse(raw);
-      return Array.isArray(data.campaigns) ? data.campaigns : [];
-    }
-  } catch (err) {
-    console.error("Error reading campaigns.json:", err);
-  }
-  return [];
+  const data = getLocalFallbackConfig<{ campaigns: Campaign[] }>(FALLBACK_FILE, { campaigns: [] });
+  return Array.isArray(data.campaigns) ? data.campaigns : [];
+}
+
+export async function getCampaignsAsync(): Promise<Campaign[]> {
+  const fallback = getCampaigns();
+  const data = await getSystemConfig<{ campaigns: Campaign[] }>(CONFIG_KEY, FALLBACK_FILE, { campaigns: fallback });
+  return Array.isArray(data.campaigns) ? data.campaigns : [];
+}
+
+export async function getActiveCampaignsAsync(): Promise<Campaign[]> {
+  const all = await getCampaignsAsync();
+  const now = new Date();
+  return all.filter((c) => {
+    if (c.status !== "active") return false;
+    const start = new Date(c.startDate);
+    const end = new Date(c.endDate);
+    return now >= start && now <= end;
+  });
 }
 
 export function getActiveCampaigns(): Campaign[] {
@@ -65,75 +75,83 @@ export function getActiveCampaigns(): Campaign[] {
   });
 }
 
-export function saveCampaign(campaign: Campaign): boolean {
+export async function saveCampaignAsync(campaign: Campaign): Promise<boolean> {
   try {
-    const campaigns = getCampaigns();
+    const campaigns = await getCampaignsAsync();
     const index = campaigns.findIndex((c) => c.id === campaign.id);
     if (index >= 0) {
       campaigns[index] = campaign;
     } else {
       campaigns.unshift(campaign);
     }
-    const dir = path.dirname(CAMPAIGNS_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(CAMPAIGNS_FILE, JSON.stringify({ campaigns }, null, 2), "utf8");
+    const ok = await setSystemConfig(CONFIG_KEY, FALLBACK_FILE, { campaigns });
     triggerRevalidation();
-    return true;
+    return ok;
   } catch (err) {
     console.error("Error saving campaign:", err);
     return false;
   }
 }
 
-export function deleteCampaign(id: string): boolean {
+export function saveCampaign(campaign: Campaign): boolean {
+  saveCampaignAsync(campaign).catch((e) => console.error("Async saveCampaign error:", e));
+  return true;
+}
+
+export async function deleteCampaignAsync(id: string): Promise<boolean> {
   try {
-    const campaigns = getCampaigns();
+    const campaigns = await getCampaignsAsync();
     const filtered = campaigns.filter((c) => c.id !== id);
     if (filtered.length !== campaigns.length) {
-      fs.writeFileSync(CAMPAIGNS_FILE, JSON.stringify({ campaigns: filtered }, null, 2), "utf8");
+      const ok = await setSystemConfig(CONFIG_KEY, FALLBACK_FILE, { campaigns: filtered });
       triggerRevalidation();
-      return true;
+      return ok;
     }
+    return true;
   } catch (err) {
     console.error("Error deleting campaign:", err);
+    return false;
   }
-  return false;
+}
+
+export function deleteCampaign(id: string): boolean {
+  deleteCampaignAsync(id).catch((e) => console.error("Async deleteCampaign error:", e));
+  return true;
 }
 
 export function getCampaignParticipants(): CampaignParticipant[] {
-  try {
-    if (fs.existsSync(PARTICIPANTS_FILE)) {
-      const raw = fs.readFileSync(PARTICIPANTS_FILE, "utf8").replace(/^\uFEFF/, "");
-      const data = JSON.parse(raw);
-      return Array.isArray(data.participants) ? data.participants : [];
-    }
-  } catch (err) {
-    console.error("Error reading campaign-users.json:", err);
-  }
-  return [];
+  const data = getLocalFallbackConfig<{ participants: CampaignParticipant[] }>(USERS_FALLBACK_FILE, { participants: [] });
+  return Array.isArray(data.participants) ? data.participants : [];
 }
 
-export function recordCampaignParticipant(
+export async function getCampaignParticipantsAsync(): Promise<CampaignParticipant[]> {
+  const fallback = getCampaignParticipants();
+  const data = await getSystemConfig<{ participants: CampaignParticipant[] }>(USERS_CONFIG_KEY, USERS_FALLBACK_FILE, { participants: fallback });
+  return Array.isArray(data.participants) ? data.participants : [];
+}
+
+export async function recordCampaignParticipantAsync(
   participant: Omit<CampaignParticipant, "id">
-): boolean {
+): Promise<boolean> {
   try {
-    const participants = getCampaignParticipants();
+    const participants = await getCampaignParticipantsAsync();
     const newRecord: CampaignParticipant = {
       ...participant,
       id: `cu-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     };
     participants.unshift(newRecord);
-    const dir = path.dirname(PARTICIPANTS_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(PARTICIPANTS_FILE, JSON.stringify({ participants }, null, 2), "utf8");
+    const ok = await setSystemConfig(USERS_CONFIG_KEY, USERS_FALLBACK_FILE, { participants });
     triggerRevalidation();
-    return true;
+    return ok;
   } catch (err) {
     console.error("Error recording campaign participant:", err);
     return false;
   }
+}
+
+export function recordCampaignParticipant(
+  participant: Omit<CampaignParticipant, "id">
+): boolean {
+  recordCampaignParticipantAsync(participant).catch((e) => console.error("Async record participant error:", e));
+  return true;
 }

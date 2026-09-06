@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { revalidatePath } from "next/cache";
 
 type OfferInput = {
   title: string;
@@ -55,7 +56,7 @@ export async function createOffer(input: OfferInput) {
         reward_points: points,
         reward_usd: usd,
         icon: input.icon?.trim() || "🎁",
-        tracking_url: input.tracking_url?.trim() || "http://localhost:3000/demo-provider?click_id={click_id}",
+        tracking_url: input.tracking_url?.trim() || "https://www.rewardnova.shop/demo-provider?click_id={click_id}",
         countries: Array.isArray(input.countries) ? input.countries : [],
         devices: Array.isArray(input.devices) && input.devices.length > 0 ? input.devices : ["Desktop", "Mobile"],
         description: input.description?.trim() || "Complete qualifying activity to earn points.",
@@ -122,6 +123,8 @@ export async function updateOffer(offerId: string, input: Partial<OfferInput>) {
       return { success: false, error: error.message };
     }
 
+    revalidatePath("/admin/offers");
+    revalidatePath("/earn");
     return { success: true };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : "Failed to update offer" };
@@ -147,10 +150,32 @@ export async function deleteOffer(offerId: string) {
       .eq("id", offerId);
 
     if (error) {
+      // If foreign key constraint prevents deletion (e.g. conversions exist), soft-delete by archiving
+      if (error.code === "23503" || error.message?.includes("foreign key")) {
+        const { error: archiveError } = await supabaseAdmin
+          .from("offers")
+          .update({
+            status: "archived",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", offerId);
+
+        if (archiveError) {
+          console.error("Failed to archive offer:", archiveError);
+          return { success: false, error: archiveError.message };
+        }
+
+        revalidatePath("/admin/offers");
+        revalidatePath("/earn");
+        return { success: true, archived: true };
+      }
+
       console.error("Failed to delete offer:", error);
       return { success: false, error: error.message };
     }
 
+    revalidatePath("/admin/offers");
+    revalidatePath("/earn");
     return { success: true };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : "Failed to delete offer" };

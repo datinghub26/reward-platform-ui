@@ -1,5 +1,4 @@
-﻿import fs from "fs";
-import path from "path";
+import { getSystemConfig, setSystemConfig, getLocalFallbackConfig } from "./system-config";
 
 export interface PendingOfferRule {
   id: string;
@@ -11,31 +10,38 @@ export interface PendingOfferRule {
   created_at: string;
 }
 
-const RULES_FILE = path.join(process.cwd(), "data", "pending-rules.json");
+const CONFIG_KEY = "pending_rules";
+const FALLBACK_FILE = "pending-rules.json";
 
 export function getPendingRules(): PendingOfferRule[] {
-  try {
-    if (fs.existsSync(RULES_FILE)) {
-      const raw = fs.readFileSync(RULES_FILE, "utf-8");
-      return JSON.parse(raw);
-    }
-  } catch (err) {
-    console.error("Failed to read pending rules:", err);
-  }
-  return [];
+  return getLocalFallbackConfig<PendingOfferRule[]>(FALLBACK_FILE, []);
+}
+
+export async function getPendingRulesAsync(): Promise<PendingOfferRule[]> {
+  const fallback = getPendingRules();
+  return getSystemConfig<PendingOfferRule[]>(CONFIG_KEY, FALLBACK_FILE, fallback);
+}
+
+export async function savePendingRulesAsync(rules: PendingOfferRule[]): Promise<boolean> {
+  return setSystemConfig(CONFIG_KEY, FALLBACK_FILE, rules);
 }
 
 export function savePendingRules(rules: PendingOfferRule[]) {
-  try {
-    const dir = path.dirname(RULES_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(RULES_FILE, JSON.stringify(rules, null, 2), "utf-8");
-  } catch (err) {
-    console.error("Failed to persist pending rules:", err);
-    throw new Error("Failed to persist pending rules");
-  }
+  savePendingRulesAsync(rules).catch((e) => console.error("Async savePendingRules error:", e));
+}
+
+export async function createPendingRuleAsync(
+  input: Omit<PendingOfferRule, "id" | "created_at">
+): Promise<PendingOfferRule> {
+  const rules = await getPendingRulesAsync();
+  const newRule: PendingOfferRule = {
+    id: `rule-${Date.now()}`,
+    ...input,
+    created_at: new Date().toISOString(),
+  };
+  rules.unshift(newRule);
+  await savePendingRulesAsync(rules);
+  return newRule;
 }
 
 export function createPendingRule(
@@ -52,6 +58,15 @@ export function createPendingRule(
   return newRule;
 }
 
+export async function togglePendingRuleAsync(id: string): Promise<PendingOfferRule | null> {
+  const rules = await getPendingRulesAsync();
+  const rule = rules.find((r) => r.id === id);
+  if (!rule) return null;
+  rule.active = !rule.active;
+  await savePendingRulesAsync(rules);
+  return rule;
+}
+
 export function togglePendingRule(id: string): PendingOfferRule | null {
   const rules = getPendingRules();
   const rule = rules.find((r) => r.id === id);
@@ -59,6 +74,13 @@ export function togglePendingRule(id: string): PendingOfferRule | null {
   rule.active = !rule.active;
   savePendingRules(rules);
   return rule;
+}
+
+export async function deletePendingRuleAsync(id: string): Promise<boolean> {
+  const rules = await getPendingRulesAsync();
+  const filtered = rules.filter((r) => r.id !== id);
+  if (filtered.length === rules.length) return false;
+  return savePendingRulesAsync(filtered);
 }
 
 export function deletePendingRule(id: string): boolean {

@@ -4,6 +4,8 @@ import AppSidebar from "@/components/AppSidebar";
 import { createClient } from "@/lib/supabase/server";
 import { getReferralStats } from "@/lib/referrals";
 import { getPlatformSettings } from "@/lib/settings";
+import { headers } from "next/headers";
+import { getAppUrl } from "@/lib/url-helper";
 import ReferralCard from "./ReferralCard";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +28,10 @@ function formatDate(isoString: string) {
 }
 
 export default async function ReferralsPage() {
-  const supabase = await createClient();
+  const [headersList, supabase] = await Promise.all([
+    headers(),
+    createClient(),
+  ]);
 
   const {
     data: { user },
@@ -39,7 +44,7 @@ export default async function ReferralsPage() {
 
   // Create a clean referral code from the user's ID
   const referralCode = user.id.slice(0, 8);
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const siteUrl = getAppUrl(headersList);
   const referralUrl = `${siteUrl}/register?ref=${referralCode}`;
 
   return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 type ReferralCardProps = {
   referralCode: string;
@@ -17,6 +17,20 @@ export default function ReferralCard({
 }: ReferralCardProps) {
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [clientOrigin, setClientOrigin] = useState<string>("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setClientOrigin(window.location.origin);
+    }
+  }, []);
+
+  const effectiveReferralUrl =
+    clientOrigin && !clientOrigin.includes("localhost")
+      ? `${clientOrigin}/register?ref=${referralCode}`
+      : (referralUrl && !referralUrl.includes("localhost")
+          ? referralUrl
+          : `https://www.rewardnova.shop/register?ref=${referralCode}`);
 
   async function copyToClipboard(text: string, isCode: boolean) {
     try {
@@ -50,7 +64,7 @@ export default function ReferralCard({
   const shareText = encodeURIComponent(
     `Join RewardNova and earn gift cards, crypto, and cash rewards! Use my invite code ${referralCode} or sign up directly:`
   );
-  const shareUrl = encodeURIComponent(referralUrl);
+  const shareUrl = encodeURIComponent(effectiveReferralUrl);
 
   return (
     <section className="card" style={{ marginBottom: 24, padding: "24px" }}>
@@ -110,13 +124,13 @@ export default function ReferralCard({
             wordBreak: "break-all",
           }}
         >
-          {referralUrl}
+          {effectiveReferralUrl}
         </div>
 
         <button
           type="button"
           className="btn btn-primary"
-          onClick={() => copyToClipboard(referralUrl, false)}
+          onClick={() => copyToClipboard(effectiveReferralUrl, false)}
           style={{ minWidth: "120px" }}
         >
           {copiedLink ? "✓ Copied!" : "📋 Copy Link"}
@@ -157,7 +171,7 @@ export default function ReferralCard({
         </a>
 
         <a
-          href={`mailto:?subject=Join%20RewardNova&body=${shareText}%20${referralUrl}`}
+          href={`mailto:?subject=Join%20RewardNova&body=${shareText}%20${shareUrl}`}
           className="btn"
           style={{ fontSize: "12px", padding: "6px 12px" }}
         >

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useEffect, useTransition } from "react";
 import { markNotificationAsRead, markAllNotificationsAsRead } from "./actions";
 import { createClient } from "@/lib/supabase/client";
+import { playNotificationSound } from "@/lib/sound";
 
 type Notification = {
   id: string;
@@ -96,6 +97,7 @@ export default function NotificationList({
             if (!isMounted) return;
             const newRow = payload.new as Notification;
             setItems((prev) => [newRow, ...prev.filter((n) => n.id !== newRow.id)]);
+            playNotificationSound();
           }
         )
         .on(
@@ -147,16 +149,25 @@ export default function NotificationList({
     }
 
     // Update the UI immediately.
-    setItems((current) =>
-      current.map((notification) =>
+    setItems((current) => {
+      const next = current.map((notification) =>
         notification.id === notificationId
           ? {
               ...notification,
               is_read: true,
             }
           : notification
-      )
-    );
+      );
+      const remainingUnread = next.filter((n) => !n.is_read).length;
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("notification-unread-changed", {
+            detail: { count: remainingUnread },
+          })
+        );
+      }
+      return next;
+    });
 
     setPendingId(null);
 
@@ -187,6 +198,14 @@ export default function NotificationList({
         is_read: true,
       }))
     );
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("notification-unread-changed", {
+          detail: { count: 0 },
+        })
+      );
+    }
 
     setMarkingAll(false);
 

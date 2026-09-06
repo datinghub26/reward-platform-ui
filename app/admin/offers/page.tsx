@@ -26,6 +26,7 @@ export default async function AdminOffersPage() {
         created_at
       `
     )
+    .neq("status", "archived")
     .order("created_at", { ascending: false });
 
   if (offersError) {

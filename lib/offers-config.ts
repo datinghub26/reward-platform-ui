@@ -1,9 +1,9 @@
-import fs from "fs";
-import path from "path";
-import { OffersPlatformConfig, DEFAULT_OFFERS_CONFIG, ProviderNetworkConfig } from "./offers-config-types";
-import { getStoredProviders, saveStoredProviders } from "./providers-store";
+import { OffersPlatformConfig, DEFAULT_OFFERS_CONFIG } from "./offers-config-types";
+import { getStoredProvidersAsync, saveStoredProvidersAsync, getStoredProviders } from "./providers-store";
+import { getSystemConfig, setSystemConfig, getLocalFallbackConfig } from "./system-config";
 
-const CONFIG_FILE = path.join(process.cwd(), "data", "offers-config.json");
+const CONFIG_KEY = "offers_config";
+const FALLBACK_FILE = "offers-config.json";
 
 function triggerRevalidation() {
   try {
@@ -19,21 +19,15 @@ function triggerRevalidation() {
 
 export function getOffersConfig(): OffersPlatformConfig {
   try {
-    let currentConfig: OffersPlatformConfig;
+    const currentConfig = getLocalFallbackConfig<OffersPlatformConfig>(
+      FALLBACK_FILE,
+      JSON.parse(JSON.stringify(DEFAULT_OFFERS_CONFIG))
+    );
 
-    if (fs.existsSync(CONFIG_FILE)) {
-      const raw = fs.readFileSync(CONFIG_FILE, "utf8").replace(/^\uFEFF/, "");
-      currentConfig = JSON.parse(raw);
-    } else {
-      currentConfig = JSON.parse(JSON.stringify(DEFAULT_OFFERS_CONFIG));
-    }
-
-    // Ensure providerConfigs exists
     if (!currentConfig.providerConfigs) {
       currentConfig.providerConfigs = {};
     }
 
-    // Dynamically sync with actual providers in data/providers.json
     const liveProviders = getStoredProviders();
     for (const prov of liveProviders) {
       const existing = currentConfig.providerConfigs[prov.id];
@@ -45,7 +39,6 @@ export function getOffersConfig(): OffersPlatformConfig {
           active: prov.active,
         };
       } else {
-        // Sync name and active status
         existing.name = prov.name;
         existing.active = prov.active;
       }
@@ -53,22 +46,49 @@ export function getOffersConfig(): OffersPlatformConfig {
 
     return currentConfig;
   } catch (err) {
-    console.error("Error reading offers-config.json:", err);
+    console.error("Error reading offers config:", err);
     return DEFAULT_OFFERS_CONFIG;
   }
 }
 
-export function saveOffersConfig(config: OffersPlatformConfig): boolean {
+export async function getOffersConfigAsync(): Promise<OffersPlatformConfig> {
   try {
-    const dir = path.dirname(CONFIG_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+    const fallback = getOffersConfig();
+    const currentConfig = await getSystemConfig<OffersPlatformConfig>(CONFIG_KEY, FALLBACK_FILE, fallback);
+
+    if (!currentConfig.providerConfigs) {
+      currentConfig.providerConfigs = {};
     }
 
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), "utf8");
+    const liveProviders = await getStoredProvidersAsync();
+    for (const prov of liveProviders) {
+      const existing = currentConfig.providerConfigs[prov.id];
+      if (!existing) {
+        currentConfig.providerConfigs[prov.id] = {
+          name: prov.name,
+          apiKey: "",
+          secret: "",
+          active: prov.active,
+        };
+      } else {
+        existing.name = prov.name;
+        existing.active = prov.active;
+      }
+    }
 
-    // Also synchronize active state back to data/providers.json
-    const liveProviders = getStoredProviders();
+    return currentConfig;
+  } catch (err) {
+    console.error("Error loading offers config async:", err);
+    return DEFAULT_OFFERS_CONFIG;
+  }
+}
+
+export async function saveOffersConfigAsync(config: OffersPlatformConfig): Promise<boolean> {
+  try {
+    await setSystemConfig(CONFIG_KEY, FALLBACK_FILE, config);
+
+    // Also synchronize active state back to stored providers
+    const liveProviders = await getStoredProvidersAsync();
     let providersUpdated = false;
 
     for (const prov of liveProviders) {
@@ -80,13 +100,18 @@ export function saveOffersConfig(config: OffersPlatformConfig): boolean {
     }
 
     if (providersUpdated) {
-      saveStoredProviders(liveProviders);
+      await saveStoredProvidersAsync(liveProviders);
     }
 
     triggerRevalidation();
     return true;
   } catch (err) {
-    console.error("Error writing offers-config.json:", err);
+    console.error("Error saving offers config:", err);
     return false;
   }
+}
+
+export function saveOffersConfig(config: OffersPlatformConfig): boolean {
+  saveOffersConfigAsync(config).catch((e) => console.error("Async saveOffersConfig error:", e));
+  return true;
 }

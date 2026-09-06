@@ -1,12 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { StreaksConfig, saveStreaksConfig } from "@/lib/streaks";
+import { StreaksConfig, saveStreaksConfigAsync } from "@/lib/streaks";
 import { logAdminAudit } from "@/lib/audit-logger";
 
 export async function saveStreaksConfigAction(config: StreaksConfig) {
   try {
-    const ok = saveStreaksConfig({
+    const ok = await saveStreaksConfigAsync({
       ...config,
       minDailyPoints: Number(config.minDailyPoints) || 50,
       maxStreakFreeze: Number(config.maxStreakFreeze) || 0,

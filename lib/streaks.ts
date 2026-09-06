@@ -1,5 +1,4 @@
-import fs from "fs";
-import path from "path";
+import { getSystemConfig, setSystemConfig, getLocalFallbackConfig } from "./system-config";
 
 export interface StreakDay {
   day: number;
@@ -14,7 +13,25 @@ export interface StreaksConfig {
   streakDays: StreakDay[];
 }
 
-const STREAKS_CONFIG_FILE = path.join(process.cwd(), "data", "streaks-config.json");
+const CONFIG_KEY = "streaks_config";
+const FALLBACK_FILE = "streaks-config.json";
+const USER_STREAKS_KEY = "user_streaks";
+const USER_STREAKS_FILE = "user-streaks.json";
+
+export const DEFAULT_STREAKS_CONFIG: StreaksConfig = {
+  enabled: true,
+  minDailyPoints: 50,
+  maxStreakFreeze: 1,
+  streakDays: [
+    { day: 1, bonusPoints: 10, title: "Day 1 Kickoff" },
+    { day: 2, bonusPoints: 25, title: "Day 2 Momentum" },
+    { day: 3, bonusPoints: 50, title: "Day 3 Consistency" },
+    { day: 4, bonusPoints: 75, title: "Day 4 Unstoppable" },
+    { day: 5, bonusPoints: 100, title: "Day 5 High Roller" },
+    { day: 6, bonusPoints: 150, title: "Day 6 Master" },
+    { day: 7, bonusPoints: 250, title: "Day 7 Jackpot Nova" },
+  ],
+};
 
 function triggerRevalidation() {
   try {
@@ -28,47 +45,36 @@ function triggerRevalidation() {
 }
 
 export function getStreaksConfig(): StreaksConfig {
-  try {
-    if (fs.existsSync(STREAKS_CONFIG_FILE)) {
-      const raw = fs.readFileSync(STREAKS_CONFIG_FILE, "utf8").replace(/^\uFEFF/, "");
-      const data = JSON.parse(raw);
-      if (Array.isArray(data.streakDays)) {
-        return data;
-      }
-    }
-  } catch (err) {
-    console.error("Error reading streaks-config.json:", err);
+  const data = getLocalFallbackConfig<StreaksConfig>(FALLBACK_FILE, DEFAULT_STREAKS_CONFIG);
+  if (Array.isArray(data.streakDays)) {
+    return data;
   }
+  return DEFAULT_STREAKS_CONFIG;
+}
 
-  return {
-    enabled: true,
-    minDailyPoints: 50,
-    maxStreakFreeze: 1,
-    streakDays: [
-      { day: 1, bonusPoints: 10, title: "Day 1 Kickoff" },
-      { day: 2, bonusPoints: 25, title: "Day 2 Momentum" },
-      { day: 3, bonusPoints: 50, title: "Day 3 Consistency" },
-      { day: 4, bonusPoints: 75, title: "Day 4 Unstoppable" },
-      { day: 5, bonusPoints: 100, title: "Day 5 High Roller" },
-      { day: 6, bonusPoints: 150, title: "Day 6 Master" },
-      { day: 7, bonusPoints: 250, title: "Day 7 Jackpot Nova" },
-    ],
-  };
+export async function getStreaksConfigAsync(): Promise<StreaksConfig> {
+  const fallback = getStreaksConfig();
+  const data = await getSystemConfig<StreaksConfig>(CONFIG_KEY, FALLBACK_FILE, fallback);
+  if (Array.isArray(data.streakDays)) {
+    return data;
+  }
+  return DEFAULT_STREAKS_CONFIG;
+}
+
+export async function saveStreaksConfigAsync(config: StreaksConfig): Promise<boolean> {
+  try {
+    const ok = await setSystemConfig(CONFIG_KEY, FALLBACK_FILE, config);
+    triggerRevalidation();
+    return ok;
+  } catch (err) {
+    console.error("Error saving streaks config:", err);
+    return false;
+  }
 }
 
 export function saveStreaksConfig(config: StreaksConfig): boolean {
-  try {
-    const dir = path.dirname(STREAKS_CONFIG_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(STREAKS_CONFIG_FILE, JSON.stringify(config, null, 2), "utf8");
-    triggerRevalidation();
-    return true;
-  } catch (err) {
-    console.error("Error saving streaks-config.json:", err);
-    return false;
-  }
+  saveStreaksConfigAsync(config).catch((e) => console.error("Async saveStreaksConfig error:", e));
+  return true;
 }
 
 export interface UserStreakData {
@@ -77,32 +83,17 @@ export interface UserStreakData {
   totalStreaksClaimed: number;
 }
 
-const USER_STREAKS_FILE = path.join(process.cwd(), "data", "user-streaks.json");
-
 function getAllUserStreaks(): Record<string, UserStreakData> {
-  try {
-    if (fs.existsSync(USER_STREAKS_FILE)) {
-      const raw = fs.readFileSync(USER_STREAKS_FILE, "utf8").replace(/^\uFEFF/, "");
-      return JSON.parse(raw);
-    }
-  } catch (err) {
-    console.error("Error reading user-streaks.json:", err);
-  }
-  return {};
+  return getLocalFallbackConfig<Record<string, UserStreakData>>(USER_STREAKS_FILE, {});
 }
 
-function saveAllUserStreaks(data: Record<string, UserStreakData>): boolean {
-  try {
-    const dir = path.dirname(USER_STREAKS_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(USER_STREAKS_FILE, JSON.stringify(data, null, 2), "utf8");
-    return true;
-  } catch (err) {
-    console.error("Error saving user-streaks.json:", err);
-    return false;
-  }
+async function getAllUserStreaksAsync(): Promise<Record<string, UserStreakData>> {
+  const fallback = getAllUserStreaks();
+  return getSystemConfig<Record<string, UserStreakData>>(USER_STREAKS_KEY, USER_STREAKS_FILE, fallback);
+}
+
+async function saveAllUserStreaksAsync(data: Record<string, UserStreakData>): Promise<boolean> {
+  return setSystemConfig(USER_STREAKS_KEY, USER_STREAKS_FILE, data);
 }
 
 export function getUserStreakStatus(userId: string): {
@@ -153,6 +144,45 @@ export function getUserStreakStatus(userId: string): {
   };
 }
 
+export async function getUserStreakStatusAsync(userId: string) {
+  const all = await getAllUserStreaksAsync();
+  const userRecord = all[userId] || {
+    currentStreak: 0,
+    lastClaimDate: null,
+    totalStreaksClaimed: 0,
+  };
+
+  const todayStr = new Date().toISOString().split("T")[0];
+  const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+
+  const config = await getStreaksConfigAsync();
+  const schedule = config.streakDays;
+
+  const alreadyClaimedToday = userRecord.lastClaimDate === todayStr;
+
+  let targetDay = 1;
+  if (userRecord.lastClaimDate === yesterdayStr) {
+    targetDay = (userRecord.currentStreak % 7) + 1;
+  } else if (alreadyClaimedToday) {
+    targetDay = userRecord.currentStreak || 1;
+  } else {
+    targetDay = 1;
+  }
+
+  const dayConfig = schedule.find((d) => d.day === targetDay) || schedule[0];
+  const rewardPoints = dayConfig ? dayConfig.bonusPoints : 10;
+
+  return {
+    currentStreak: userRecord.currentStreak,
+    targetDay,
+    canClaimToday: !alreadyClaimedToday && config.enabled,
+    alreadyClaimedToday,
+    rewardPoints,
+    lastClaimDate: userRecord.lastClaimDate,
+    totalStreaksClaimed: userRecord.totalStreaksClaimed,
+  };
+}
+
 export function recordUserStreakClaim(userId: string): {
   success: boolean;
   newStreak: number;
@@ -181,7 +211,7 @@ export function recordUserStreakClaim(userId: string): {
     totalStreaksClaimed: (status.totalStreaksClaimed || 0) + 1,
   };
 
-  saveAllUserStreaks(all);
+  saveAllUserStreaksAsync(all).catch((e) => console.error("Async save streaks claim error:", e));
   triggerRevalidation();
 
   return {
@@ -190,4 +220,3 @@ export function recordUserStreakClaim(userId: string): {
     rewardPoints: status.rewardPoints,
   };
 }
-

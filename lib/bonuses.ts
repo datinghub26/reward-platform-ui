@@ -1,5 +1,4 @@
-import fs from "fs";
-import path from "path";
+import { getSystemConfig, setSystemConfig, getLocalFallbackConfig } from "./system-config";
 
 export interface PromoCode {
   id: string;
@@ -12,7 +11,8 @@ export interface PromoCode {
   createdAt: string;
 }
 
-const PROMO_CODES_FILE = path.join(process.cwd(), "data", "promo-codes.json");
+const CONFIG_KEY = "promo_codes";
+const FALLBACK_FILE = "promo-codes.json";
 
 function triggerRevalidation() {
   try {
@@ -27,23 +27,19 @@ function triggerRevalidation() {
 }
 
 export function getPromoCodes(): PromoCode[] {
-  try {
-    if (fs.existsSync(PROMO_CODES_FILE)) {
-      const raw = fs.readFileSync(PROMO_CODES_FILE, "utf8").replace(/^\uFEFF/, "");
-      const data = JSON.parse(raw);
-      if (Array.isArray(data.codes)) {
-        return data.codes;
-      }
-    }
-  } catch (err) {
-    console.error("Error reading promo-codes.json:", err);
-  }
-  return [];
+  const data = getLocalFallbackConfig<{ codes: PromoCode[] }>(FALLBACK_FILE, { codes: [] });
+  return Array.isArray(data.codes) ? data.codes : [];
 }
 
-export function savePromoCode(promo: PromoCode): boolean {
+export async function getPromoCodesAsync(): Promise<PromoCode[]> {
+  const fallback = getPromoCodes();
+  const data = await getSystemConfig<{ codes: PromoCode[] }>(CONFIG_KEY, FALLBACK_FILE, { codes: fallback });
+  return Array.isArray(data.codes) ? data.codes : [];
+}
+
+export async function savePromoCodeAsync(promo: PromoCode): Promise<boolean> {
   try {
-    const codes = getPromoCodes();
+    const codes = await getPromoCodesAsync();
     const index = codes.findIndex((c) => c.id === promo.id || c.code.toUpperCase() === promo.code.toUpperCase());
 
     const cleanPromo: PromoCode = {
@@ -60,32 +56,39 @@ export function savePromoCode(promo: PromoCode): boolean {
       codes.unshift(cleanPromo);
     }
 
-    const dir = path.dirname(PROMO_CODES_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(PROMO_CODES_FILE, JSON.stringify({ codes }, null, 2), "utf8");
+    const ok = await setSystemConfig(CONFIG_KEY, FALLBACK_FILE, { codes });
     triggerRevalidation();
-    return true;
+    return ok;
   } catch (err) {
     console.error("Error saving promo code:", err);
     return false;
   }
 }
 
-export function deletePromoCode(id: string): boolean {
+export function savePromoCode(promo: PromoCode): boolean {
+  savePromoCodeAsync(promo).catch((e) => console.error("Async savePromoCode error:", e));
+  return true;
+}
+
+export async function deletePromoCodeAsync(id: string): Promise<boolean> {
   try {
-    const codes = getPromoCodes();
+    const codes = await getPromoCodesAsync();
     const filtered = codes.filter((c) => c.id !== id);
     if (filtered.length !== codes.length) {
-      fs.writeFileSync(PROMO_CODES_FILE, JSON.stringify({ codes: filtered }, null, 2), "utf8");
+      const ok = await setSystemConfig(CONFIG_KEY, FALLBACK_FILE, { codes: filtered });
       triggerRevalidation();
-      return true;
+      return ok;
     }
+    return true;
   } catch (err) {
     console.error("Error deleting promo code:", err);
+    return false;
   }
-  return false;
+}
+
+export function deletePromoCode(id: string): boolean {
+  deletePromoCodeAsync(id).catch((e) => console.error("Async deletePromoCode error:", e));
+  return true;
 }
 
 export interface PromoRedemptionResult {
@@ -95,10 +98,10 @@ export interface PromoRedemptionResult {
   error?: string;
 }
 
-export function validateAndRedeemPromoCode(
+export async function validateAndRedeemPromoCodeAsync(
   codeStr: string
-): PromoRedemptionResult {
-  const codes = getPromoCodes();
+): Promise<PromoRedemptionResult> {
+  const codes = await getPromoCodesAsync();
   const cleanCode = codeStr.trim().toUpperCase();
   const promo = codes.find((c) => c.code.toUpperCase() === cleanCode);
 
@@ -120,8 +123,30 @@ export function validateAndRedeemPromoCode(
 
   // Increment usedCount
   promo.usedCount += 1;
-  savePromoCode(promo);
+  await savePromoCodeAsync(promo);
 
   return { success: true, points: promo.rewardPoints, promo };
 }
 
+export function validateAndRedeemPromoCode(codeStr: string): PromoRedemptionResult {
+  const codes = getPromoCodes();
+  const cleanCode = codeStr.trim().toUpperCase();
+  const promo = codes.find((c) => c.code.toUpperCase() === cleanCode);
+
+  if (!promo) {
+    return { success: false, points: 0, error: "Invalid promo voucher code." };
+  }
+  if (!promo.active) {
+    return { success: false, points: 0, error: "This promo voucher is no longer active." };
+  }
+  if (promo.expiresAt && new Date(promo.expiresAt).getTime() < Date.now()) {
+    return { success: false, points: 0, error: "This promo voucher has expired." };
+  }
+  if (promo.maxUses > 0 && promo.usedCount >= promo.maxUses) {
+    return { success: false, points: 0, error: "This promo voucher has reached its maximum redemption limit." };
+  }
+
+  promo.usedCount += 1;
+  savePromoCode(promo);
+  return { success: true, points: promo.rewardPoints, promo };
+}

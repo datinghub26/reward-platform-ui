@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import {
   StoredProvider,
-  getStoredProviders,
+  getStoredProvidersAsync,
   addOrUpdateProvider,
   deleteStoredProvider,
   toggleStoredProvider,
@@ -31,7 +31,7 @@ async function verifyAdmin() {
 export async function saveProviderAction(provider: StoredProvider) {
   try {
     await verifyAdmin();
-    const updated = addOrUpdateProvider(provider);
+    const updated = await addOrUpdateProvider(provider);
     revalidatePath("/admin/providers");
     revalidatePath("/earn");
     return { success: true, providers: updated };
@@ -46,7 +46,7 @@ export async function saveProviderAction(provider: StoredProvider) {
 export async function deleteProviderAction(id: string) {
   try {
     await verifyAdmin();
-    const updated = deleteStoredProvider(id);
+    const updated = await deleteStoredProvider(id);
     revalidatePath("/admin/providers");
     revalidatePath("/earn");
     return { success: true, providers: updated };
@@ -61,7 +61,7 @@ export async function deleteProviderAction(id: string) {
 export async function toggleProviderAction(id: string) {
   try {
     await verifyAdmin();
-    const updated = toggleStoredProvider(id);
+    const updated = await toggleStoredProvider(id);
     revalidatePath("/admin/providers");
     revalidatePath("/earn");
     return { success: true, providers: updated };
@@ -75,7 +75,7 @@ export async function toggleProviderAction(id: string) {
 
 export async function getProvidersAction() {
   try {
-    const list = getStoredProviders();
+    const list = await getStoredProvidersAsync();
     return { success: true, providers: list };
   } catch (err) {
     return {

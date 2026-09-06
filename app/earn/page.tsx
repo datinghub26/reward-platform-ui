@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import AppSidebar from "@/components/AppSidebar";
 import OfferWall from "@/components/OfferWall";
 import PartnerOfferwalls from "@/components/PartnerOfferwalls";
-import { getStoredProviders } from "@/lib/providers-store";
+import { getStoredProvidersAsync } from "@/lib/providers-store";
 import { getOffersConfig } from "@/lib/offers-config";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -19,7 +19,7 @@ export default async function EarnPage() {
 
   if (!user) redirect("/login");
 
-  const [geo, { data: profile }, { data: offers, error }] = await Promise.all([
+  const [geo, { data: profile }, { data: offers, error }, storedProviders] = await Promise.all([
     getClientGeo(),
     supabase
       .from("user_profiles")
@@ -36,6 +36,8 @@ export default async function EarnPage() {
       .order("priority", { ascending: false })
       .order("featured", { ascending: false })
       .order("created_at", { ascending: false }),
+
+    getStoredProvidersAsync(),
   ]);
 
   if (error) {
@@ -56,8 +58,6 @@ export default async function EarnPage() {
     }
   }
 
-  // Fetch current synchronized providers directly from store
-  const storedProviders = getStoredProviders();
   const offersConfig = getOffersConfig();
 
   return (

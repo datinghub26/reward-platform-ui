@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { getSystemConfig, setSystemConfig, getLocalFallbackConfig } from "./system-config";
 
 export interface StoredProvider {
   id: string;
@@ -15,17 +16,17 @@ export interface StoredProvider {
   color?: string;
 }
 
-const DATA_FILE = path.join(process.cwd(), "data", "providers.json");
+const CONFIG_KEY = "providers";
+const FALLBACK_FILE = "providers.json";
 
 function triggerRevalidation() {
   try {
-    // Dynamically require next/cache so it doesn't break in standalone script runtimes
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { revalidatePath } = require("next/cache");
     revalidatePath("/admin/providers");
     revalidatePath("/earn");
   } catch {
-    // No-op when invoked outside a Next.js server request
+    // No-op outside Next.js request
   }
 }
 
@@ -38,61 +39,54 @@ export function matchesProvider(p: StoredProvider, identifier: string): boolean 
   return p.id === identifier || cleanId === cleanTarget || cleanName === cleanTarget;
 }
 
+/**
+ * Synchronous provider getter (uses local fallback file).
+ */
 export function getStoredProviders(): StoredProvider[] {
-  try {
-    if (!fs.existsSync(DATA_FILE)) {
-      return [];
-    }
-    const raw = fs.readFileSync(DATA_FILE, "utf8");
-    return JSON.parse(raw);
-  } catch (err) {
-    console.error("Error reading providers.json:", err);
-    return [];
-  }
+  return getLocalFallbackConfig<StoredProvider[]>(FALLBACK_FILE, []);
 }
 
-export function saveStoredProviders(providers: StoredProvider[]): boolean {
-  try {
-    const dir = path.dirname(DATA_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(DATA_FILE, JSON.stringify(providers, null, 2), "utf8");
-    triggerRevalidation();
-    return true;
-  } catch (err) {
-    console.error("Error writing providers.json:", err);
-    return false;
-  }
+/**
+ * Asynchronous provider getter (queries Supabase system_config first, persistent on Vercel).
+ */
+export async function getStoredProvidersAsync(): Promise<StoredProvider[]> {
+  const localDefault = getStoredProviders();
+  return getSystemConfig<StoredProvider[]>(CONFIG_KEY, FALLBACK_FILE, localDefault);
 }
 
-export function addOrUpdateProvider(provider: StoredProvider): StoredProvider[] {
-  const current = getStoredProviders();
+export async function saveStoredProvidersAsync(providers: StoredProvider[]): Promise<boolean> {
+  const ok = await setSystemConfig(CONFIG_KEY, FALLBACK_FILE, providers);
+  triggerRevalidation();
+  return ok;
+}
+
+export async function addOrUpdateProvider(provider: StoredProvider): Promise<StoredProvider[]> {
+  const current = await getStoredProvidersAsync();
   const index = current.findIndex((p) => matchesProvider(p, provider.id) || matchesProvider(p, provider.name));
   if (index >= 0) {
     current[index] = { ...current[index], ...provider };
   } else {
     current.unshift(provider);
   }
-  saveStoredProviders(current);
+  await saveStoredProvidersAsync(current);
   return current;
 }
 
-export function deleteStoredProvider(id: string): StoredProvider[] {
-  const current = getStoredProviders();
+export async function deleteStoredProvider(id: string): Promise<StoredProvider[]> {
+  const current = await getStoredProvidersAsync();
   const filtered = current.filter((p) => !matchesProvider(p, id));
-  saveStoredProviders(filtered);
+  await saveStoredProvidersAsync(filtered);
   return filtered;
 }
 
-export function toggleStoredProvider(id: string): StoredProvider[] {
-  const current = getStoredProviders();
+export async function toggleStoredProvider(id: string): Promise<StoredProvider[]> {
+  const current = await getStoredProvidersAsync();
   const updated = current.map((p) => {
     if (matchesProvider(p, id)) {
       return { ...p, active: !p.active };
     }
     return p;
   });
-  saveStoredProviders(updated);
+  await saveStoredProvidersAsync(updated);
   return updated;
 }
