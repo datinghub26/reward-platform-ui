@@ -10,9 +10,11 @@ interface PartnerOfferwallsProps {
 
 export function buildLaunchUrl(template: string, userId: string): string {
   return template
-    .replace("{user_id}", encodeURIComponent(userId))
-    .replace("[USER_ID]", encodeURIComponent(userId))
-    .replace("{sub_id}", encodeURIComponent(userId));
+    .replace(/\{user_id\}/gi, encodeURIComponent(userId))
+    .replace(/\{userId\}/g, encodeURIComponent(userId))
+    .replace(/\[USER_ID\]/gi, encodeURIComponent(userId))
+    .replace(/\{sub_id\}/gi, encodeURIComponent(userId))
+    .replace(/\{subid\}/gi, encodeURIComponent(userId));
 }
 
 export default function PartnerOfferwalls({

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import AppSidebar from "@/components/AppSidebar";
 import { createClient } from "@/lib/supabase/server";
-import { getStoredProviders, matchesProvider } from "@/lib/providers-store";
+import { getStoredProvidersAsync, matchesProvider } from "@/lib/providers-store";
 import { buildLaunchUrl } from "@/components/PartnerOfferwalls";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +23,7 @@ export default async function OfferwallPage({ params }: OfferwallPageProps) {
     redirect(`/login?next=/offerwall/${encodeURIComponent(id)}`);
   }
 
-  const providers = getStoredProviders();
+  const providers = await getStoredProvidersAsync();
   const provider = providers.find((p) => matchesProvider(p, id));
 
   if (!provider) {
