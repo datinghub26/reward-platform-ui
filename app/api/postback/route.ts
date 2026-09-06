@@ -433,9 +433,25 @@ async function processPostback(
       const isTestLead =
         candidateUserId.toLowerCase().includes("test") ||
         (typeof input.clickId === "string" && input.clickId.toLowerCase().includes("test")) ||
+        candidateUserId.includes("{") ||
+        (typeof input.clickId === "string" && input.clickId.includes("{")) ||
+        String(input.payload?.offer_name ?? "").toLowerCase().includes("test") ||
+        String(input.payload?.offer_id ?? "") === "1001" ||
+        candidateUserId === "6" ||
         Boolean(input.payload?.test);
 
+      const isTextResponseProvider =
+        input.providerName?.toLowerCase().includes("clickwall") ||
+        input.providerName?.toLowerCase().includes("nexowall");
+
       if (isTestLead) {
+        if (isTextResponseProvider) {
+          return new NextResponse("1", {
+            status: 200,
+            headers: { "content-type": "text/plain" },
+          });
+        }
+
         return NextResponse.json({
           ok: true,
           status: "approved",
@@ -640,6 +656,16 @@ async function processPostback(
       } catch (err) {
         console.error("Failed to create postback notification:", err);
       }
+    }
+
+    if (
+      input.providerName?.toLowerCase().includes("clickwall") ||
+      input.providerName?.toLowerCase().includes("nexowall")
+    ) {
+      return new NextResponse("1", {
+        status: 200,
+        headers: { "content-type": "text/plain" },
+      });
     }
 
     return NextResponse.json(
