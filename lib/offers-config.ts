@@ -59,6 +59,16 @@ export function getOffersConfig(): OffersPlatformConfig {
       }
     }
 
+    // Clean up provider tabs that no longer exist in live providers
+    for (const key of Object.keys(currentConfig.providerConfigs)) {
+      const existsInLive = liveProviders.some(
+        (prov) => prov.id === key || matchesProvider(prov, key)
+      );
+      if (!existsInLive) {
+        delete currentConfig.providerConfigs[key];
+      }
+    }
+
     return currentConfig;
   } catch (err) {
     console.error("Error reading offers config:", err);
@@ -103,6 +113,16 @@ export async function getOffersConfigAsync(): Promise<OffersPlatformConfig> {
           existing.name = prov.name;
           existing.active = prov.active;
         }
+      }
+    }
+
+    // Clean up provider tabs that no longer exist in live providers
+    for (const key of Object.keys(currentConfig.providerConfigs)) {
+      const existsInLive = liveProviders.some(
+        (prov) => prov.id === key || matchesProvider(prov, key)
+      );
+      if (!existsInLive) {
+        delete currentConfig.providerConfigs[key];
       }
     }
 
