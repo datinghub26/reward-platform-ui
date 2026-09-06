@@ -476,41 +476,47 @@ async function processPostback(
       const pointsAwarded =
         input.rewardPoints && input.rewardPoints > 0
           ? input.rewardPoints
-          : Math.max(1000, Math.round((rawPayout > 0 ? rawPayout : 1.0) * 1000));
+          : Math.max(100, Math.round((rawPayout > 0 ? rawPayout : 1.0) * 1000));
+
+      const rawOfferName = String(
+        input.payload?.offer_name ||
+        input.payload?.title ||
+        input.payload?.campaign_name ||
+        (input.payload?.offer_id ? `Offer #${input.payload.offer_id}` : "")
+      ).trim();
+      const displayOfferTitle = rawOfferName ? `${providerName}: ${rawOfferName}` : `${providerName} Activities`;
 
       let offerId: string | null = null;
       const { data: existingOffer } = await supabaseAdmin
         .from("offers")
         .select("id")
-        .ilike("provider_name", providerName)
+        .eq("title", displayOfferTitle)
         .limit(1)
         .maybeSingle();
 
       if (existingOffer) {
         offerId = existingOffer.id;
-      } else {
-        const { data: anyOffer } = await supabaseAdmin
+        await supabaseAdmin
           .from("offers")
+          .update({
+            reward_points: pointsAwarded,
+            reward_usd: rawPayout > 0 ? rawPayout : pointsAwarded / 1000,
+            status: "active",
+          })
+          .eq("id", offerId);
+      } else {
+        const { data: newOffer } = await supabaseAdmin
+          .from("offers")
+          .insert({
+            title: displayOfferTitle,
+            provider_name: providerName,
+            reward_points: pointsAwarded,
+            status: "active",
+            reward_usd: rawPayout > 0 ? rawPayout : pointsAwarded / 1000,
+          })
           .select("id")
-          .limit(1)
-          .maybeSingle();
-
-        if (anyOffer) {
-          offerId = anyOffer.id;
-        } else {
-          const { data: newOffer } = await supabaseAdmin
-            .from("offers")
-            .insert({
-              title: `${providerName} Activities`,
-              provider_name: providerName,
-              reward_points: pointsAwarded,
-              status: "active",
-              reward_usd: pointsAwarded / 1000,
-            })
-            .select("id")
-            .single();
-          offerId = newOffer?.id || null;
-        }
+          .single();
+        offerId = newOffer?.id || null;
       }
 
       if (offerId) {
