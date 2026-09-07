@@ -11,6 +11,7 @@ type StartOfferButtonProps = {
   disabled?: boolean;
   buttonClassName?: string;
   buttonText?: string;
+  userIdNumber?: string | number;
 };
 
 type OfferClick = {
@@ -30,12 +31,21 @@ function getDeviceType() {
 function resolveTrackingUrl(
   template: string,
   click: OfferClick,
-  offerId: string
+  offerId: string,
+  numericUserId?: string | number
 ) {
+  const userIdVal = String(numericUserId || click.user_id);
   let url = template
     .replaceAll("{click_id}", encodeURIComponent(click.click_id))
-    .replaceAll("{user_id}", encodeURIComponent(click.user_id))
-    .replaceAll("{offer_id}", encodeURIComponent(offerId));
+    .replaceAll("%7Bclick_id%7D", encodeURIComponent(click.click_id))
+    .replaceAll("%7BCLICK_ID%7D", encodeURIComponent(click.click_id))
+    .replaceAll("{CLICK_ID}", encodeURIComponent(click.click_id))
+    .replaceAll("{user_id}", encodeURIComponent(userIdVal))
+    .replaceAll("%7Buser_id%7D", encodeURIComponent(userIdVal))
+    .replaceAll("%7BUSER_ID%7D", encodeURIComponent(userIdVal))
+    .replaceAll("{USER_ID}", encodeURIComponent(userIdVal))
+    .replaceAll("{offer_id}", encodeURIComponent(offerId))
+    .replaceAll("%7Boffer_id%7D", encodeURIComponent(offerId));
 
   const parsedUrl = new URL(url);
 
@@ -44,7 +54,14 @@ function resolveTrackingUrl(
   }
 
   // Ensure click_id is present even if the tracking URL had no {click_id} macro
-  if (!template.includes("{click_id}") && !parsedUrl.searchParams.has("click_id")) {
+  const hasClickMacro =
+    template.includes("{click_id}") ||
+    template.includes("%7Bclick_id%7D") ||
+    parsedUrl.searchParams.has("sub2") ||
+    parsedUrl.searchParams.has("subId") ||
+    parsedUrl.searchParams.has("click_id");
+
+  if (!hasClickMacro && !parsedUrl.searchParams.has("click_id")) {
     parsedUrl.searchParams.set("click_id", click.click_id);
   }
 
@@ -59,6 +76,7 @@ export default function StartOfferButton({
   disabled,
   buttonClassName = "btn btn-primary btn-large detail-start",
   buttonText = "Start Offer →",
+  userIdNumber,
 }: StartOfferButtonProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -88,7 +106,7 @@ export default function StartOfferButton({
         throw new Error("The offer click could not be created.");
       }
 
-      window.location.assign(resolveTrackingUrl(trackingUrl, click, offerId));
+      window.location.assign(resolveTrackingUrl(trackingUrl, click, offerId, userIdNumber));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to start this offer.");
       setLoading(false);

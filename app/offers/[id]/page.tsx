@@ -6,6 +6,7 @@ import OfferIcon from "@/components/OfferIcon";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getClientGeo, getCountryDisplayName, isOfferEligibleForCountry } from "@/lib/geo";
+import { getOrAssignUserNumericIdAsync } from "@/lib/user-ids";
 
 export default async function OfferDetails({
   params,
@@ -17,7 +18,7 @@ export default async function OfferDetails({
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [geo, { data: offer }, { data: profile }] = await Promise.all([
+  const [geo, { data: offer }, { data: profile }, numericId] = await Promise.all([
     getClientGeo(),
     supabase
       .from("offers")
@@ -30,6 +31,7 @@ export default async function OfferDetails({
       .select("country_code")
       .eq("id", user.id)
       .maybeSingle(),
+    getOrAssignUserNumericIdAsync(user.id),
   ]);
 
   if (!offer) notFound();
@@ -119,6 +121,7 @@ export default async function OfferDetails({
                     source="offer_detail"
                     disabled={!offer.tracking_url || !isEligible}
                     buttonText={!isEligible ? "Not Available in Your Region" : "Start Offer →"}
+                    userIdNumber={numericId}
                   />
                   {!offer.tracking_url && isEligible && (
                     <p className="detail-disclaimer">This offer is active in the database, but its provider tracking URL has not been configured yet.</p>

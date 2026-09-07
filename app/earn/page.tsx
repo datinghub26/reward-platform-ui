@@ -72,6 +72,7 @@ export default async function EarnPage() {
           availablePoints={Number(profile?.available_points ?? 0)}
           profileCountry={verifiedCountry}
           offersConfig={offersConfig}
+          userIdNumber={numericId}
           partnerOfferwallsSlot={
             <PartnerOfferwalls
               providers={storedProviders}

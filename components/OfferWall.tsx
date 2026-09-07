@@ -34,12 +34,14 @@ export default function OfferWall({
   profileCountry,
   partnerOfferwallsSlot,
   offersConfig,
+  userIdNumber,
 }: {
   offers: Offer[];
   availablePoints: number;
   profileCountry: string;
   partnerOfferwallsSlot?: React.ReactNode;
   offersConfig?: OffersPlatformConfig;
+  userIdNumber?: string | number;
 }) {
   const [category, setCategory] = useState("All");
   const [device, setDevice] = useState("All");
@@ -380,6 +382,7 @@ export default function OfferWall({
                     disabled={!offer.tracking_url}
                     buttonClassName="btn btn-primary"
                     buttonText="Start →"
+                    userIdNumber={userIdNumber}
                   />
                 </div>
               </article>
@@ -652,6 +655,7 @@ export default function OfferWall({
                   disabled={!offer.tracking_url}
                   buttonClassName="btn btn-primary"
                   buttonText="View Offer →"
+                  userIdNumber={userIdNumber}
                 />
               </div>
             </article>
