@@ -4,6 +4,7 @@ import OfferWall from "@/components/OfferWall";
 import PartnerOfferwalls from "@/components/PartnerOfferwalls";
 import { getStoredProvidersAsync } from "@/lib/providers-store";
 import { getOffersConfig } from "@/lib/offers-config";
+import { getOrAssignUserNumericIdAsync } from "@/lib/user-ids";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getClientGeo } from "@/lib/geo";
@@ -19,7 +20,7 @@ export default async function EarnPage() {
 
   if (!user) redirect("/login");
 
-  const [geo, { data: profile }, { data: offers, error }, storedProviders] = await Promise.all([
+  const [geo, { data: profile }, { data: offers, error }, storedProviders, numericId] = await Promise.all([
     getClientGeo(),
     supabase
       .from("user_profiles")
@@ -38,6 +39,7 @@ export default async function EarnPage() {
       .order("created_at", { ascending: false }),
 
     getStoredProvidersAsync(),
+    getOrAssignUserNumericIdAsync(user.id),
   ]);
 
   if (error) {
@@ -73,7 +75,7 @@ export default async function EarnPage() {
           partnerOfferwallsSlot={
             <PartnerOfferwalls
               providers={storedProviders}
-              userId={user.id}
+              userId={String(numericId || user.id)}
             />
           }
         />

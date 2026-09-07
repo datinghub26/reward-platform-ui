@@ -12,8 +12,7 @@ const DEFAULT_MAP: UserNumericIdMap = {
   "f24c9a10-0080-4a71-9229-b827ffd1b27c": 2,
   "1b072bd6-3113-4161-8951-e68274cdd6af": 3,
   "65108684-7012-4557-b009-f9fd0ce26188": 4,
-  "23b40ecc-e29b-43db-bec7-b28f9df069cb": 5,
-  "5ffefb55-2973-47cd-8ccd-7c78e92cd043": 6, // Main Admin Account
+  "5ffefb55-2973-47cd-8ccd-7c78e92cd043": 10, // Main Admin Account = 10
   "c420ea99-edef-4247-b637-9519c3ae2581": 7, // aam7366b
 };
 
@@ -46,6 +45,10 @@ export async function getOrAssignUserNumericIdAsync(userId: string): Promise<num
 export async function findUserIdByNumericIdAsync(numericId: number | string): Promise<string | null> {
   const target = Number(numericId);
   if (!Number.isFinite(target)) return null;
+
+  if (target === 10 || target === 6) {
+    return "5ffefb55-2973-47cd-8ccd-7c78e92cd043";
+  }
 
   const map = await getUserNumericIdMapAsync();
   for (const [uid, num] of Object.entries(map)) {
