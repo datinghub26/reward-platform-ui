@@ -8,6 +8,7 @@ import { calculateUserLevel } from "@/lib/levels";
 import { getPlatformSettings } from "@/lib/settings";
 import UserLevelWidget from "@/components/UserLevelWidget";
 import PromoCodeWidget from "@/components/PromoCodeWidget";
+import { getOrAssignUserNumericIdAsync } from "@/lib/user-ids";
 import ProfileForm from "./ProfileForm";
 
 function formatPoints(value: number) {
@@ -31,7 +32,7 @@ export default async function ProfilePage() {
 
   if (!user) redirect("/login");
 
-  const [geo, { data: profile }] = await Promise.all([
+  const [geo, { data: profile }, numericId] = await Promise.all([
     getClientGeo(),
     supabase
       .from("user_profiles")
@@ -40,6 +41,7 @@ export default async function ProfilePage() {
       )
       .eq("id", user.id)
       .maybeSingle(),
+    getOrAssignUserNumericIdAsync(user.id),
   ]);
 
   const verifiedCountry = geo.countryCode;
@@ -87,13 +89,18 @@ export default async function ProfilePage() {
         <div className="profile-layout">
           <section className="card profile-card">
             <div className="profile-cover" />
-            <div className="profile-header">
-              <div className="profile-avatar">RN</div>
-              <div>
-                <h2>{displayName}</h2>
-                <p className="muted">Member since {memberSince(profile?.created_at)}</p>
+              <div className="profile-header">
+                <div className="profile-avatar">#{numericId}</div>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                    <h2 style={{ margin: 0 }}>{displayName}</h2>
+                    <span className="badge" style={{ backgroundColor: "rgba(0, 220, 130, 0.15)", color: "#00dc82", border: "1px solid rgba(0, 220, 130, 0.3)", fontWeight: 700, fontSize: "12px", padding: "4px 8px" }}>
+                      User ID: #{numericId}
+                    </span>
+                  </div>
+                  <p className="muted" style={{ margin: "4px 0 0" }}>Member since {memberSince(profile?.created_at)}</p>
+                </div>
               </div>
-            </div>
 
             <div className="profile-stats">
               <div>
@@ -130,6 +137,7 @@ export default async function ProfilePage() {
               email={user.email ?? ""}
               initialCountryCode={verifiedCountry}
               initialTimezone={profile?.timezone ?? null}
+              userIdNumber={numericId}
             />
           </section>
 

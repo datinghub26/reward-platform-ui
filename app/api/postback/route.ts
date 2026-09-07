@@ -456,7 +456,11 @@ async function processPostback(
           .maybeSingle();
         userProfile = data;
       } else if (candidateUserId && candidateUserId !== "test" && !candidateUserId.includes("{")) {
-        if (candidateUserId === "6" || candidateUserId.toLowerCase() === "mamnunahmedcpa") {
+        const { findUserIdByNumericIdAsync } = await import("@/lib/user-ids");
+        const resolvedByNum = await findUserIdByNumericIdAsync(candidateUserId);
+        if (resolvedByNum) {
+          userProfile = { id: resolvedByNum };
+        } else if (candidateUserId === "6" || candidateUserId.toLowerCase() === "mamnunahmedcpa") {
           userProfile = { id: "5ffefb55-2973-47cd-8ccd-7c78e92cd043" };
         } else if (candidateUserId.includes("@")) {
           const { data: authList } = await supabaseAdmin.auth.admin.listUsers();
@@ -646,14 +650,6 @@ async function processPostback(
       try {
         const points = Number(data.reward_points ?? 0);
         if (data.status === "approved" && points > 0) {
-          await supabaseAdmin.from("notifications").insert({
-            user_id: data.user_id,
-            type: "reward",
-            title: "Reward Credited! 🎉",
-            message: `You earned ${points.toLocaleString()} points from a completed offer.`,
-            is_read: false,
-          });
-
           try {
             const { processReferralCommission } = await import("@/lib/referrals");
             await processReferralCommission(data.user_id, points);

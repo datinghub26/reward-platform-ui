@@ -10,6 +10,7 @@ type ProfileFormProps = {
   email: string;
   initialCountryCode: string | null;
   initialTimezone: string | null;
+  userIdNumber?: number;
 };
 
 export default function ProfileForm({
@@ -17,6 +18,7 @@ export default function ProfileForm({
   email,
   initialCountryCode,
   initialTimezone,
+  userIdNumber,
 }: ProfileFormProps) {
   const router = useRouter();
   const [displayName, setDisplayName] = useState(initialDisplayName);
@@ -63,6 +65,17 @@ export default function ProfileForm({
 
   return (
     <form className="profile-form" onSubmit={handleSubmit}>
+      <label>
+        <span>User ID (Permanent Account ID)</span>
+        <input
+          className="input"
+          value={userIdNumber ? `User #${userIdNumber}` : "Assigned"}
+          readOnly
+          disabled
+          style={{ opacity: 0.95, cursor: "not-allowed", fontWeight: 700, color: "var(--primary)" }}
+        />
+      </label>
+
       <label>
         <span>Display name</span>
         <input

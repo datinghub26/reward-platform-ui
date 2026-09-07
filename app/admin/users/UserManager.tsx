@@ -11,6 +11,7 @@ import {
 export interface AdminUserRecord {
   id: string;
   display_name: string;
+  numeric_id?: number;
   email: string;
   role: "admin" | "user";
   level: number;
@@ -416,11 +417,13 @@ export default function UserManager({
                               : "#22c55e",
                         }}
                       >
-                        {user.display_name.charAt(0).toUpperCase()}
+                        {user.numeric_id ? `#${user.numeric_id}` : user.display_name.charAt(0).toUpperCase()}
                       </div>
                       <div className="admin-user-meta">
                         <div className="admin-user-name" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                          <span>{user.display_name}</span>
+                          <span style={{ fontWeight: 700, color: "#ffffff" }}>
+                            {user.numeric_id ? `User #${user.numeric_id}` : user.display_name}
+                          </span>
                           {user.role === "admin" && (
                             <span style={{ fontSize: "10px", color: "#f87171", fontWeight: 700 }}>★</span>
                           )}
