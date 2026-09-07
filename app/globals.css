@@ -1,16 +1,19 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
 
 :root {
-  --bg: #07111f;
-  --panel: #0d1a2b;
-  --panel-2: #112238;
-  --border: rgba(255,255,255,.09);
-  --text: #f7fbff;
-  --muted: #9aabc0;
-  --primary: #7c5cff;
-  --primary-2: #9b86ff;
-  --success: #27d17f;
-  --warning: #ffbf47;
+  --bg: #07090d;
+  --panel: #0d1217;
+  --panel-2: #121820;
+  --border: rgba(255,255,255,.08);
+  --text: #ffffff;
+  --muted: #8492a6;
+  --primary: #00dc82;
+  --primary-2: #059669;
+  --success: #00dc82;
+  --warning: #ffb830;
+  --danger: #e11d48;
+  --ruby: #e11d48;
+  --emerald: #00dc82;
 }
 
 * { box-sizing: border-box; }
@@ -20,8 +23,8 @@ html { scroll-behavior: smooth; }
 body {
   margin: 0;
   background:
-    radial-gradient(circle at 20% 0%, rgba(124,92,255,.18), transparent 28%),
-    radial-gradient(circle at 90% 15%, rgba(39,209,127,.08), transparent 25%),
+    radial-gradient(circle at 15% 0%, rgba(0,220,130,.10), transparent 30%),
+    radial-gradient(circle at 85% 15%, rgba(225,29,72,.07), transparent 25%),
     var(--bg);
   color: var(--text);
   font-family: Inter, Arial, sans-serif;
@@ -70,8 +73,8 @@ button {
   display: grid;
   place-items: center;
   border-radius: 11px;
-  background: linear-gradient(135deg, var(--primary), #4de1b1);
-  color: #07111f;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  color: #060a0e;
 }
 
 .nav-links {
@@ -100,7 +103,9 @@ button {
 .btn-primary {
   border: 0;
   background: linear-gradient(135deg, var(--primary), var(--primary-2));
-  box-shadow: 0 10px 30px rgba(124,92,255,.22);
+  color: #060a0e;
+  font-weight: 700;
+  box-shadow: 0 10px 30px rgba(0,220,130,.22);
 }
 
 .btn-large {
@@ -313,10 +318,15 @@ button {
   font-size: 14px;
 }
 
-.side-nav a:hover,
-.side-nav a.active {
+.side-nav a:hover {
   color: var(--text);
-  background: rgba(124,92,255,.11);
+  background: rgba(255,255,255,.05);
+}
+
+.side-nav a.active {
+  color: #00dc82;
+  background: rgba(0,220,130,.10);
+  border: 1px solid rgba(0,220,130,.32);
 }
 
 .dashboard-main {

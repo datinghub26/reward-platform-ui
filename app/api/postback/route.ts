@@ -259,6 +259,21 @@ async function validSecret(request: Request): Promise<boolean> {
     console.error("Error checking provider_postback_auth in postback:", err);
   }
 
+  // 3. Tertiary check against offers_config provider secrets configured in Admin Panel
+  try {
+    const { getOffersConfigAsync } = await import("@/lib/offers-config");
+    const offersCfg = await getOffersConfigAsync();
+    const configuredSecrets = Object.values(offersCfg.providerConfigs || {})
+      .map((p) => (p.secret || "").trim())
+      .filter((s) => s.length > 0);
+
+    if (configuredSecrets.some((s) => s === providedSecret.trim())) {
+      return true;
+    }
+  } catch (err) {
+    console.error("Error checking offers_config secrets in postback:", err);
+  }
+
   return false;
 }
 

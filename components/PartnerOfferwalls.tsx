@@ -300,7 +300,7 @@ export default function PartnerOfferwalls({
 
               <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                 <a
-                  href={`/offerwall/${encodeURIComponent(activeProvider.id)}`}
+                  href={buildLaunchUrl(activeProvider.url, userId)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn"
