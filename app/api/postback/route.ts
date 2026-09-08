@@ -62,9 +62,13 @@ async function readInput(
       userId:
         body.user_id ??
         body.userId ??
+        body.userid ??
         body.uid ??
         body.sub_id ??
         body.subid ??
+        body.subId ??
+        body.sub ??
+        body.user ??
         null,
 
       status:
@@ -78,16 +82,24 @@ async function readInput(
         body.network ??
         body.provider ??
         body.wall ??
-        null,
+        (body.placementId === "6a9e310ea777a90b91c94cec" || body.placement_id === "6a9e310ea777a90b91c94cec"
+          ? "Gemiads"
+          : null),
 
       providerConversionId:
         body.provider_conversion_id ??
         body.transaction_id ??
+        body.transactionId ??
         body.conversion_id ??
+        body.conversionId ??
         body.trans_id ??
+        body.transId ??
+        body.transid ??
         body.tx_id ??
         body.txid ??
         body.lead_id ??
+        body.track_id ??
+        body.tracking_id ??
         body.id ??
         null,
 
@@ -103,9 +115,15 @@ async function readInput(
           ? Number(body.points)
           : body.reward_points != null
             ? Number(body.reward_points)
-            : body.amount != null
-              ? Number(body.amount)
-              : null,
+            : body.reward != null
+              ? Number(body.reward)
+              : body.amount != null
+                ? Number(body.amount)
+                : body.credits != null
+                  ? Number(body.credits)
+                  : body.virtual_currency != null
+                    ? Number(body.virtual_currency)
+                    : null,
 
       payload: body,
     };
@@ -118,6 +136,47 @@ async function readInput(
   const url = new URL(request.url);
   const params = url.searchParams;
 
+  const pathStr = url.pathname.toLowerCase();
+  const reqMatchedPath = (request.headers.get("x-matched-path") || "").toLowerCase();
+  const reqInvokePath = (request.headers.get("x-invoke-path") || "").toLowerCase();
+  const isGemiads =
+    pathStr.includes("gemiad") ||
+    pathStr.includes("gemlad") ||
+    pathStr.includes("gemiwall") ||
+    reqMatchedPath.includes("gemiad") ||
+    reqInvokePath.includes("gemiad") ||
+    params.get("wall")?.toLowerCase().includes("gemiad") ||
+    params.get("network")?.toLowerCase().includes("gemiad") ||
+    params.get("provider")?.toLowerCase().includes("gemiad") ||
+    params.get("placementId") === "6a9e310ea777a90b91c94cec" ||
+    params.get("placement_id") === "6a9e310ea777a90b91c94cec";
+
+  const isNexo =
+    pathStr.includes("nexowall") ||
+    reqMatchedPath.includes("nexowall") ||
+    reqInvokePath.includes("nexowall") ||
+    params.get("wall")?.toLowerCase().includes("nexowall") ||
+    params.get("network")?.toLowerCase().includes("nexowall") ||
+    params.get("provider")?.toLowerCase().includes("nexowall");
+
+  const isAdsweb =
+    pathStr.includes("adswedmedia") ||
+    pathStr.includes("adswebmedia") ||
+    reqMatchedPath.includes("adswedmedia") ||
+    reqInvokePath.includes("adswedmedia") ||
+    params.get("wall")?.toLowerCase().includes("adswedmedia") ||
+    params.get("network")?.toLowerCase().includes("adswedmedia") ||
+    params.get("provider")?.toLowerCase().includes("adswedmedia");
+
+  const isClickwall =
+    pathStr.includes("clickwall") ||
+    reqMatchedPath.includes("clickwall") ||
+    reqInvokePath.includes("clickwall") ||
+    params.get("wall")?.toLowerCase().includes("clickwall") ||
+    params.get("network")?.toLowerCase().includes("clickwall") ||
+    params.get("provider")?.toLowerCase().includes("clickwall") ||
+    params.has("txid");
+
   return {
     clickId: firstValue(
       params.getAll("click_id").length
@@ -128,21 +187,27 @@ async function readInput(
             ? params.getAll("subid")
             : params.getAll("sub_id").length
               ? params.getAll("sub_id")
-              : params.getAll("sub1").length
-                ? params.getAll("sub1")
-                : params.getAll("sub_1").length
-                  ? params.getAll("sub_1")
-                  : params.getAll("s1").length
-                    ? params.getAll("s1")
-                    : params.getAll("s_1").length
-                      ? params.getAll("s_1")
-                      : params.getAll("sid").length
-                        ? params.getAll("sid")
-                        : params.getAll("user_id").length
-                          ? params.getAll("user_id")
-                          : params.getAll("userId").length
-                            ? params.getAll("userId")
-                            : params.getAll("uid")
+              : params.getAll("subId").length
+                ? params.getAll("subId")
+                : params.getAll("sub1").length
+                  ? params.getAll("sub1")
+                  : params.getAll("sub_1").length
+                    ? params.getAll("sub_1")
+                    : params.getAll("s1").length
+                      ? params.getAll("s1")
+                      : params.getAll("s_1").length
+                        ? params.getAll("s_1")
+                        : params.getAll("sid").length
+                          ? params.getAll("sid")
+                          : params.getAll("user_id").length
+                            ? params.getAll("user_id")
+                            : params.getAll("userId").length
+                              ? params.getAll("userId")
+                              : params.getAll("userid").length
+                                ? params.getAll("userid")
+                                : params.getAll("uid").length
+                                  ? params.getAll("uid")
+                                  : params.getAll("user")
     ),
 
     userId: firstValue(
@@ -150,11 +215,19 @@ async function readInput(
         ? params.getAll("user_id")
         : params.getAll("userId").length
           ? params.getAll("userId")
-          : params.getAll("uid").length
-            ? params.getAll("uid")
-            : params.getAll("sub_id").length
-              ? params.getAll("sub_id")
-              : params.getAll("subid")
+          : params.getAll("userid").length
+            ? params.getAll("userid")
+            : params.getAll("uid").length
+              ? params.getAll("uid")
+              : params.getAll("sub_id").length
+                ? params.getAll("sub_id")
+                : params.getAll("subid").length
+                  ? params.getAll("subid")
+                  : params.getAll("subId").length
+                    ? params.getAll("subId")
+                    : params.getAll("sub").length
+                      ? params.getAll("sub")
+                      : params.getAll("user")
     ),
 
     status:
@@ -168,21 +241,30 @@ async function readInput(
       params.get("network") ??
       params.get("provider") ??
       params.get("wall") ??
-      (url.pathname.toLowerCase().includes("clickwall") ||
-      (request.headers.get("x-matched-path") || "").toLowerCase().includes("clickwall") ||
-      (request.headers.get("x-invoke-path") || "").toLowerCase().includes("clickwall") ||
-      params.has("txid")
-        ? "Clickwall"
-        : null),
+      (isGemiads
+        ? "Gemiads"
+        : isNexo
+          ? "Nexowall"
+          : isAdsweb
+            ? "Adswedmedia"
+            : isClickwall
+              ? "Clickwall"
+              : null),
 
     providerConversionId:
       params.get("provider_conversion_id") ??
       params.get("transaction_id") ??
+      params.get("transactionId") ??
       params.get("conversion_id") ??
+      params.get("conversionId") ??
       params.get("trans_id") ??
+      params.get("transId") ??
+      params.get("transid") ??
       params.get("tx_id") ??
       params.get("txid") ??
       params.get("lead_id") ??
+      params.get("track_id") ??
+      params.get("tracking_id") ??
       params.get("id") ??
       null,
 
@@ -198,9 +280,15 @@ async function readInput(
         ? Number(params.get("points"))
         : params.get("reward_points") != null
           ? Number(params.get("reward_points"))
-          : params.get("amount") != null
-            ? Number(params.get("amount"))
-            : null,
+          : params.get("reward") != null
+            ? Number(params.get("reward"))
+            : params.get("amount") != null
+              ? Number(params.get("amount"))
+              : params.get("credits") != null
+                ? Number(params.get("credits"))
+                : params.get("virtual_currency") != null
+                  ? Number(params.get("virtual_currency"))
+                  : null,
 
     payload: Object.fromEntries(
       params.entries()
@@ -235,19 +323,47 @@ async function validSecret(request: Request): Promise<boolean> {
 
   const providedSecret = headerSecret || querySecret;
 
-  // Dedicated offerwall webhook paths (e.g. Clickwall / Nexowall) that may not include secret parameters
+  // Dedicated offerwall webhook paths (e.g. Clickwall / Nexowall / Gemiads / Adswebmedia / Upwall)
   const pathname = url.pathname.toLowerCase();
   const matchedPath = (request.headers.get("x-matched-path") || "").toLowerCase();
   const invokePath = (request.headers.get("x-invoke-path") || "").toLowerCase();
-  const isClickwallRoute =
+  const queryWall = (
+    url.searchParams.get("wall") ||
+    url.searchParams.get("network") ||
+    url.searchParams.get("provider") ||
+    ""
+  ).toLowerCase();
+  const placementId = url.searchParams.get("placementId") || url.searchParams.get("placement_id") || "";
+
+  const isDedicatedOfferwallRoute =
     pathname.includes("clickwall") ||
     matchedPath.includes("clickwall") ||
     invokePath.includes("clickwall") ||
-    url.searchParams.get("wall")?.toLowerCase() === "clickwall" ||
-    url.searchParams.get("network")?.toLowerCase() === "clickwall" ||
-    url.searchParams.get("provider")?.toLowerCase() === "clickwall";
+    queryWall.includes("clickwall") ||
+    pathname.includes("gemiad") ||
+    pathname.includes("gemlad") ||
+    pathname.includes("gemiwall") ||
+    matchedPath.includes("gemiad") ||
+    invokePath.includes("gemiad") ||
+    queryWall.includes("gemiad") ||
+    queryWall.includes("gemlad") ||
+    placementId === "6a9e310ea777a90b91c94cec" ||
+    pathname.includes("nexowall") ||
+    matchedPath.includes("nexowall") ||
+    invokePath.includes("nexowall") ||
+    queryWall.includes("nexowall") ||
+    pathname.includes("adswedmedia") ||
+    pathname.includes("adswebmedia") ||
+    matchedPath.includes("adswedmedia") ||
+    invokePath.includes("adswedmedia") ||
+    queryWall.includes("adswedmedia") ||
+    queryWall.includes("adswebmedia") ||
+    pathname.includes("upwall") ||
+    matchedPath.includes("upwall") ||
+    invokePath.includes("upwall") ||
+    queryWall.includes("upwall");
 
-  if (isClickwallRoute) {
+  if (isDedicatedOfferwallRoute) {
     return true;
   }
 
@@ -255,11 +371,14 @@ async function validSecret(request: Request): Promise<boolean> {
     return false;
   }
 
-  // 1. Primary check against master global secret
+  // 1. Primary check against master global secret or known provider keys
   if (
     providedSecret === globalExpected ||
     providedSecret === "RewardNova_Postback_2026_A9x7Kp4Lm2Q" ||
-    providedSecret === "rewardnova-secure-postback-secret"
+    providedSecret === "rewardnova-secure-postback-secret" ||
+    providedSecret === "6a9e310ea777a90b91c94cec" ||
+    providedSecret === "10ec287148695fe8f53657961b817e8832d2736860fd2270c08d4db41d94d94d" ||
+    providedSecret === "4bfd5a91-c6c9-450a-96a5-1371edfe114d"
   ) {
     return true;
   }
@@ -517,14 +636,16 @@ async function processPostback(
       let providerName = input.providerName;
       if (!providerName) {
         const pathLower = url.pathname.toLowerCase();
-        if (pathLower.includes("clickwall") || input.payload?.txid) {
-          providerName = "Clickwall";
+        if (pathLower.includes("gemiad") || pathLower.includes("gemlad") || pathLower.includes("gemiwall")) {
+          providerName = "Gemiads";
         } else if (pathLower.includes("nexowall")) {
           providerName = "Nexowall";
-        } else if (pathLower.includes("gemiad") || pathLower.includes("gemlad")) {
-          providerName = "Gemiads";
-        } else if (pathLower.includes("adswedmedia")) {
+        } else if (pathLower.includes("adswedmedia") || pathLower.includes("adswebmedia")) {
           providerName = "Adswedmedia";
+        } else if (pathLower.includes("upwall")) {
+          providerName = "Upwall";
+        } else if (pathLower.includes("clickwall") || input.payload?.txid) {
+          providerName = "Clickwall";
         } else {
           providerName = "Clickwall";
         }
@@ -717,15 +838,27 @@ async function processPostback(
     const pathStr = url.pathname.toLowerCase();
     const reqMatchedPath = (request.headers.get("x-matched-path") || "").toLowerCase();
     const reqInvokePath = (request.headers.get("x-invoke-path") || "").toLowerCase();
-    const isClickwallOrNexo =
+    const isOfferwallNetwork =
       input.providerName?.toLowerCase().includes("clickwall") ||
       input.providerName?.toLowerCase().includes("nexowall") ||
+      input.providerName?.toLowerCase().includes("gemiad") ||
+      input.providerName?.toLowerCase().includes("gemlad") ||
+      input.providerName?.toLowerCase().includes("adswedmedia") ||
+      input.providerName?.toLowerCase().includes("adswebmedia") ||
+      input.providerName?.toLowerCase().includes("upwall") ||
       pathStr.includes("clickwall") ||
       pathStr.includes("nexowall") ||
+      pathStr.includes("gemiad") ||
+      pathStr.includes("gemlad") ||
+      pathStr.includes("adswedmedia") ||
+      pathStr.includes("adswebmedia") ||
+      pathStr.includes("upwall") ||
       reqMatchedPath.includes("clickwall") ||
-      reqInvokePath.includes("clickwall");
+      reqInvokePath.includes("clickwall") ||
+      reqMatchedPath.includes("gemiad") ||
+      reqInvokePath.includes("gemiad");
 
-    if (isClickwallOrNexo) {
+    if (isOfferwallNetwork) {
       return new NextResponse("1", {
         status: 200,
         headers: { "content-type": "text/plain" },
