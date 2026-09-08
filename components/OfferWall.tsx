@@ -44,31 +44,14 @@ export default function OfferWall({
   userIdNumber?: string | number;
 }) {
   const topOffers = useMemo(() => {
-    if (!offersConfig) return [];
-    const mode = offersConfig.topOffersMode || "Manual";
-    const max = Math.max(1, offersConfig.maxOffers || 6);
-
     const eligible = offers.filter((o) => isOfferEligibleForCountry(o.countries, profileCountry));
 
-    if (mode.toLowerCase().includes("manual")) {
-      const manualList = eligible.filter((o) => o.featured || o.popular);
-      const pool = manualList.length > 0 ? manualList : eligible;
-      return [...pool]
-        .sort((a, b) => Number(b.featured) - Number(a.featured) || b.priority - a.priority || b.reward_points - a.reward_points)
-        .slice(0, max);
-    } else if (mode.toLowerCase().includes("automatic")) {
-      return [...eligible]
-        .sort((a, b) => b.reward_points - a.reward_points || b.priority - a.priority)
-        .slice(0, max);
-    } else {
-      return [...eligible]
-        .sort((a, b) => {
-          if (a.featured !== b.featured) return Number(b.featured) - Number(a.featured);
-          return b.reward_points - a.reward_points || b.priority - a.priority;
-        })
-        .slice(0, max);
-    }
-  }, [offers, offersConfig, profileCountry]);
+    return [...eligible].sort((a, b) => {
+      if (a.featured !== b.featured) return Number(b.featured) - Number(a.featured);
+      if (b.priority !== a.priority) return b.priority - a.priority;
+      return b.reward_points - a.reward_points;
+    });
+  }, [offers, profileCountry]);
 
   return (
     <>

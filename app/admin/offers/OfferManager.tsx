@@ -69,7 +69,7 @@ export default function OfferManager({
     setCountriesInput("ALL");
     setDevices(["Desktop", "Mobile"]);
     setDescription("Complete the qualifying activity to receive your reward.");
-    setFeatured(false);
+    setFeatured(true);
     setPopular(false);
     setStatus("active");
     setActionError("");
