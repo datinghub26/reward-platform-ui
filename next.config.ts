@@ -5,6 +5,9 @@ const nextConfig: NextConfig = {
   compress: true,
   poweredByHeader: false,
   skipTrailingSlashRedirect: true,
+  images: {
+    formats: ["image/avif", "image/webp"],
+  },
   async rewrites() {
     return [
       {
@@ -31,6 +34,30 @@ const nextConfig: NextConfig = {
         source: "/postback/clickwall",
         destination: "/api/postback",
       },
+      {
+        source: "/api/postback/nexowall",
+        destination: "/api/postback",
+      },
+      {
+        source: "/postback/nexowall",
+        destination: "/api/postback",
+      },
+      {
+        source: "/api/postback/gemiads",
+        destination: "/api/postback",
+      },
+      {
+        source: "/postback/gemiads",
+        destination: "/api/postback",
+      },
+      {
+        source: "/api/postback/adswedmedia",
+        destination: "/api/postback",
+      },
+      {
+        source: "/postback/adswedmedia",
+        destination: "/api/postback",
+      },
     ];
   },
   async headers() {
@@ -53,6 +80,15 @@ const nextConfig: NextConfig = {
           {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=()",
+          },
+        ],
+      },
+      {
+        source: "/assets/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
           },
         ],
       },

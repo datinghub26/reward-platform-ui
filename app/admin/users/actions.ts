@@ -4,22 +4,10 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
+import { verifyAdminSession } from "@/lib/supabase/admin-auth";
+
 async function verifyAdmin() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { authorized: false, error: "Authentication required." };
-  }
-
-  const { data: isAdmin, error } = await supabase.rpc("is_admin");
-  if (error || !isAdmin) {
-    return { authorized: false, error: "Administrator access required." };
-  }
-
-  return { authorized: true, adminUser: user };
+  return verifyAdminSession();
 }
 
 export async function updateUserAction(params: {

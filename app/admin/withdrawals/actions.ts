@@ -1,8 +1,8 @@
-﻿"use server";
+"use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { verifyAdminSession } from "@/lib/supabase/admin-auth";
 
 export type WithdrawalStatus =
   | "pending"
@@ -16,22 +16,9 @@ export async function updateWithdrawal(
   adminNote?: string
 ): Promise<{ success: boolean; error?: string; message?: string }> {
   try {
-    const supabase = await createClient();
-
-    // 1. Verify user is signed in
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      return { success: false, error: "You must be signed in as administrator." };
-    }
-
-    // 2. Verify admin role
-    const { data: isAdmin, error: adminError } = await supabase.rpc("is_admin");
-    if (adminError || isAdmin !== true) {
-      return { success: false, error: "Administrator access required." };
+    const auth = await verifyAdminSession();
+    if (!auth.authorized) {
+      return { success: false, error: auth.error };
     }
 
     // 3. Validate status
@@ -200,10 +187,9 @@ export async function deleteWithdrawalAction(
   withdrawalId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = await createClient();
-    const { data: isAdmin } = await supabase.rpc("is_admin");
-    if (isAdmin !== true) {
-      return { success: false, error: "Administrator access required." };
+    const auth = await verifyAdminSession();
+    if (!auth.isAdmin) {
+      return { success: false, error: auth.error || "Administrator access required." };
     }
 
     // Fetch withdrawal

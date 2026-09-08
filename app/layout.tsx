@@ -1,7 +1,14 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import PointCreditListener from "@/components/PointCreditListener";
 import "./globals.css";
+
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://rewardnova.com"),
@@ -49,8 +56,8 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
-      <body>
+    <html lang="en" className={inter.variable}>
+      <body className={inter.className}>
         <Suspense fallback={null}>
           <PointCreditListener />
         </Suspense>

@@ -5,26 +5,24 @@ import AdminSidebar from "@/components/admin/AdminSidebar";
 import AdminHeader from "@/components/admin/AdminHeader";
 import "./admin.css";
 
+import { verifyAdminSession } from "@/lib/supabase/admin-auth";
+
 export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
+  const auth = await verifyAdminSession();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  if (!auth.user) {
     redirect("/login?next=/admin");
   }
 
-  const { data: adminResult, error: adminError } = await supabase.rpc("is_admin");
-
-  if (adminError || adminResult !== true) {
+  if (!auth.isAdmin) {
     redirect("/dashboard");
   }
+
+  const user = auth.user;
 
   // Fetch count badges for sidebar (e.g. pending leads, pending withdrawals, open tickets)
   const [conversionsRes, pendingWithdrawalsRes, openTicketsRes] = await Promise.all([

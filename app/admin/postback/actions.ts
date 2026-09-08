@@ -5,22 +5,14 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import crypto from "crypto";
 import { getAppUrl } from "@/lib/url-helper";
 
+import { verifyAdminSession } from "@/lib/supabase/admin-auth";
+
 async function verifyAdmin() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    throw new Error("You must be signed in.");
+  const auth = await verifyAdminSession();
+  if (!auth.isAdmin || !auth.user) {
+    throw new Error(auth.error || "Administrator access required.");
   }
-
-  const { data: isAdmin } = await supabase.rpc("is_admin");
-  if (isAdmin !== true) {
-    throw new Error("Administrator access required.");
-  }
-
-  return user;
+  return auth.user;
 }
 
 export async function addProviderCredential(providerName: string, customSecret?: string) {

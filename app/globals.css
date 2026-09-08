@@ -1,5 +1,3 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
-
 :root {
   --bg: #020b07;
   --panel: #07120d;
@@ -30,7 +28,7 @@ body {
     radial-gradient(circle at 88% 12%, rgba(84, 232, 139, 0.08), transparent 28%),
     var(--bg);
   color: var(--text);
-  font-family: Inter, Arial, sans-serif;
+  font-family: var(--font-inter), Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 a { color: inherit; text-decoration: none; }
