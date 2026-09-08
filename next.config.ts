@@ -4,6 +4,35 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   compress: true,
   poweredByHeader: false,
+  skipTrailingSlashRedirect: true,
+  async rewrites() {
+    return [
+      {
+        source: "/postback",
+        destination: "/api/postback",
+      },
+      {
+        source: "/api/postback/",
+        destination: "/api/postback",
+      },
+      {
+        source: "/postback/",
+        destination: "/api/postback",
+      },
+      {
+        source: "/api/postbacks",
+        destination: "/api/postback",
+      },
+      {
+        source: "/api/postback/clickwall",
+        destination: "/api/postback",
+      },
+      {
+        source: "/postback/clickwall",
+        destination: "/api/postback",
+      },
+    ];
+  },
   async headers() {
     return [
       {
