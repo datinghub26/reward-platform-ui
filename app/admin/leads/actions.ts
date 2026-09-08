@@ -6,9 +6,12 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 
 async function verifyAdmin() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const [userRes, sessionRes] = await Promise.all([
+    supabase.auth.getUser(),
+    supabase.auth.getSession(),
+  ]);
+
+  const user = userRes.data?.user || sessionRes.data?.session?.user;
 
   if (!user) {
     return { authorized: false, error: "Authentication required." };
@@ -245,19 +248,24 @@ export async function bulkDeleteLeadsAction(conversionIds: string[]) {
   }
 
   try {
-    // Unlink conversion_ids from reward_ledger to satisfy foreign key constraints
-    await supabaseAdmin
-      .from("reward_ledger")
-      .update({ conversion_id: null })
-      .in("conversion_id", conversionIds);
+    const CHUNK_SIZE = 25;
+    for (let i = 0; i < conversionIds.length; i += CHUNK_SIZE) {
+      const chunk = conversionIds.slice(i, i + CHUNK_SIZE);
 
-    const { error } = await supabaseAdmin
-      .from("conversions")
-      .delete()
-      .in("id", conversionIds);
+      // Unlink conversion_ids from reward_ledger to satisfy foreign key constraints
+      await supabaseAdmin
+        .from("reward_ledger")
+        .update({ conversion_id: null })
+        .in("conversion_id", chunk);
 
-    if (error) {
-      return { success: false, error: error.message };
+      const { error } = await supabaseAdmin
+        .from("conversions")
+        .delete()
+        .in("id", chunk);
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
     }
 
     revalidatePath("/admin/leads");

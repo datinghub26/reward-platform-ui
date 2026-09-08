@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { reverseLeadAction, deleteLeadAction, bulkDeleteLeadsAction, getLeadDetailsAction } from "./actions";
 
 export interface AdminLeadRecord {
@@ -49,12 +50,23 @@ export default function LeadsManager({
   totalLeadsCount,
   todayLeadsCount,
 }: LeadsManagerProps) {
+  const router = useRouter();
   const [leads, setLeads] = useState<AdminLeadRecord[]>(initialLeads);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"All" | "approved" | "pending" | "reversed">("All");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
+
+  // Real-time Today Leads Count
+  const currentTodayLeadsCount = useMemo(() => {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    return leads.filter((l) => {
+      if (!l.raw_created_at) return false;
+      return new Date(l.raw_created_at).getTime() >= startOfToday.getTime();
+    }).length;
+  }, [leads]);
 
   // Track / Inspector Modal State
   const [inspectingLead, setInspectingLead] = useState<AdminLeadRecord | null>(null);
@@ -110,6 +122,13 @@ export default function LeadsManager({
     const start = (currentPage - 1) * pageSize;
     return filteredLeads.slice(start, start + pageSize);
   }, [filteredLeads, currentPage, pageSize]);
+
+  // Adjust page if items were deleted and currentPage exceeds totalPages
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
@@ -174,46 +193,63 @@ export default function LeadsManager({
     }
 
     setDeletingId(id);
-    const res = await deleteLeadAction(id);
-    if (res.success) {
-      setLeads((prev) => prev.filter((l) => l.id !== id));
-      setSelectedIds((prev) => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      });
-      if (inspectingLead?.id === id) {
-        setInspectingLead(null);
+    try {
+      const res = await deleteLeadAction(id);
+      if (res.success) {
+        setLeads((prev) => prev.filter((l) => l.id !== id));
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+        if (inspectingLead?.id === id) {
+          setInspectingLead(null);
+        }
+        showToast("Lead record deleted successfully.");
+        router.refresh();
+      } else {
+        showToast(res.error || "Failed to delete lead", "error");
       }
-      showToast("Lead record deleted successfully.");
-    } else {
-      showToast(res.error || "Failed to delete lead", "error");
+    } catch (err: unknown) {
+      showToast((err as Error).message || "Failed to delete lead", "error");
+    } finally {
+      setDeletingId(null);
     }
-    setDeletingId(null);
   };
 
   // Bulk Delete Leads
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
-    const count = selectedIds.size;
+    const idsArray = Array.from(selectedIds);
+    const count = idsArray.length;
     if (!window.confirm(`Are you sure you want to permanently delete ${count} selected lead record${count > 1 ? "s" : ""}?`)) {
       return;
     }
 
     setBulkDeleting(true);
-    const idsArray = Array.from(selectedIds);
-    const res = await bulkDeleteLeadsAction(idsArray);
-    if (res.success) {
-      setLeads((prev) => prev.filter((l) => !selectedIds.has(l.id)));
-      if (inspectingLead && selectedIds.has(inspectingLead.id)) {
-        setInspectingLead(null);
+    try {
+      const res = await bulkDeleteLeadsAction(idsArray);
+      if (res.success) {
+        const deletedSet = new Set(idsArray);
+        setLeads((prev) => prev.filter((l) => !deletedSet.has(l.id)));
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          idsArray.forEach((id) => next.delete(id));
+          return next;
+        });
+        if (inspectingLead && deletedSet.has(inspectingLead.id)) {
+          setInspectingLead(null);
+        }
+        showToast(`${count} lead record${count > 1 ? "s" : ""} deleted successfully.`);
+        router.refresh();
+      } else {
+        showToast(res.error || "Failed to bulk delete leads", "error");
       }
-      setSelectedIds(new Set());
-      showToast(`${count} lead record${count > 1 ? "s" : ""} deleted successfully.`);
-    } else {
-      showToast(res.error || "Failed to bulk delete leads", "error");
+    } catch (err: unknown) {
+      showToast((err as Error).message || "Failed to bulk delete leads", "error");
+    } finally {
+      setBulkDeleting(false);
     }
-    setBulkDeleting(false);
   };
 
   return (
@@ -273,7 +309,7 @@ export default function LeadsManager({
       <div className="admin-stats-grid" style={{ gridTemplateColumns: "repeat(2, 1fr)" }}>
         <div className="admin-stat-card">
           <div className="admin-stat-label">Total Leads</div>
-          <div className="admin-stat-val">{totalLeadsCount}</div>
+          <div className="admin-stat-val">{leads.length}</div>
           <div className="admin-stat-sub sub-green">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/>
@@ -285,7 +321,7 @@ export default function LeadsManager({
 
         <div className="admin-stat-card">
           <div className="admin-stat-label">Today Leads</div>
-          <div className="admin-stat-val">{todayLeadsCount}</div>
+          <div className="admin-stat-val">{currentTodayLeadsCount}</div>
           <div className="admin-stat-sub sub-blue">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/>
