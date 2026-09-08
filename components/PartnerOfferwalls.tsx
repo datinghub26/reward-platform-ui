@@ -9,13 +9,37 @@ interface PartnerOfferwallsProps {
 }
 
 export function buildLaunchUrl(template: string, userId: string): string {
-  return template
-    .replace(/\{user_id\}/gi, encodeURIComponent(userId))
-    .replace(/\{userid\}/gi, encodeURIComponent(userId))
-    .replace(/\{userId\}/g, encodeURIComponent(userId))
-    .replace(/\[USER_ID\]/gi, encodeURIComponent(userId))
-    .replace(/\{sub_id\}/gi, encodeURIComponent(userId))
-    .replace(/\{subid\}/gi, encodeURIComponent(userId));
+  if (!template) return "";
+  const cleanId = String(userId || "").trim().replace(/^#/, "");
+  let url = template.trim();
+
+  // Handle ClickWall specific route structure: /app/iframe/{appId}/user_id={userId}
+  if (url.includes("clickwall.net")) {
+    if (/user_id=[^/&?#]+/i.test(url)) {
+      url = url.replace(/user_id=[^/&?#]+/gi, `user_id=${encodeURIComponent(cleanId)}`);
+    } else if (/(?:\/)?(?:\{user_id\}|\{userid\}|\{userId\}|\[USER_ID\])/i.test(url)) {
+      url = url.replace(/(?:\/)?(?:\{user_id\}|\{userid\}|\{userId\}|\[USER_ID\])/gi, `/user_id=${encodeURIComponent(cleanId)}`);
+    } else {
+      url = url.replace(/\/+$/, "") + `/user_id=${encodeURIComponent(cleanId)}`;
+    }
+  }
+
+  // Replace standard tokens for all offerwalls
+  url = url
+    .replace(/\{user_id\}/gi, encodeURIComponent(cleanId))
+    .replace(/\{userid\}/gi, encodeURIComponent(cleanId))
+    .replace(/\{userId\}/g, encodeURIComponent(cleanId))
+    .replace(/\[USER_ID\]/gi, encodeURIComponent(cleanId))
+    .replace(/\{sub_id\}/gi, encodeURIComponent(cleanId))
+    .replace(/\{subid\}/gi, encodeURIComponent(cleanId));
+
+  // Ensure user_id identifier is present across all offerwall links
+  if (!url.includes("user_id=")) {
+    const separator = url.includes("?") ? "&" : "?";
+    url = `${url}${separator}user_id=${encodeURIComponent(cleanId)}`;
+  }
+
+  return url;
 }
 
 export default function PartnerOfferwalls({

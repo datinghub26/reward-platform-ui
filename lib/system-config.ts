@@ -24,12 +24,6 @@ export async function getSystemConfig<T>(
   fallbackFilename: string,
   defaultValue: T
 ): Promise<T> {
-  // 1. Fast in-memory TTL cache hit
-  const cached = memoryCache.get(key);
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.value as T;
-  }
-
   try {
     const { data, error } = await supabaseAdmin
       .from("system_config")
@@ -41,11 +35,12 @@ export async function getSystemConfig<T>(
       memoryCache.set(key, { value: data.value, expiresAt: Date.now() + CACHE_TTL_MS });
       return data.value as T;
     }
-  } catch {
-    // Supabase table or network fallback
+  } catch (err) {
+    console.warn(`Supabase system_config fetch failed for ${key}:`, err);
   }
 
-  // Fallback to expired memory cache if DB fails
+  // Fallback to in-memory cache if DB is down or unreachable
+  const cached = memoryCache.get(key);
   if (cached) {
     return cached.value as T;
   }

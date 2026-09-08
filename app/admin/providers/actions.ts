@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import {
   StoredProvider,
   getStoredProvidersAsync,
@@ -21,11 +22,21 @@ async function verifyAdmin() {
   }
 
   const { data: isAdmin } = await supabase.rpc("is_admin");
-  if (isAdmin !== true) {
-    throw new Error("Administrator access required.");
+  if (isAdmin === true) {
+    return user;
   }
 
-  return user;
+  const { data: adminRecord } = await supabaseAdmin
+    .from("admin_users")
+    .select("user_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (adminRecord) {
+    return user;
+  }
+
+  throw new Error("Administrator access required.");
 }
 
 export async function saveProviderAction(provider: StoredProvider) {
@@ -41,6 +52,7 @@ export async function saveProviderAction(provider: StoredProvider) {
     revalidatePath("/admin/providers");
     revalidatePath("/admin/offers-settings");
     revalidatePath("/earn");
+    revalidatePath("/", "layout");
     return { success: true, providers: updated };
   } catch (err) {
     return {
@@ -63,6 +75,7 @@ export async function deleteProviderAction(id: string) {
     revalidatePath("/admin/providers");
     revalidatePath("/admin/offers-settings");
     revalidatePath("/earn");
+    revalidatePath("/", "layout");
     return { success: true, providers: updated };
   } catch (err) {
     return {
@@ -85,6 +98,7 @@ export async function toggleProviderAction(id: string) {
     revalidatePath("/admin/providers");
     revalidatePath("/admin/offers-settings");
     revalidatePath("/earn");
+    revalidatePath("/", "layout");
     return { success: true, providers: updated };
   } catch (err) {
     return {

@@ -71,7 +71,7 @@ export const DEFAULT_PROVIDERS: OfferwallProvider[] = [
     type: "offer",
     badge: "80%",
     active: true,
-    urlTemplate: "https://clickwall.net/app/iframe/10889/{user_id}",
+    urlTemplate: "https://clickwall.net/app/iframe/10889/user_id={user_id}",
     show_rate: true,
     rate: "5",
     logo: "👆",
