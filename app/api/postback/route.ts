@@ -899,6 +899,21 @@ async function processPostback(
       reqMatchedPath.includes("gemiad") ||
       reqInvokePath.includes("gemiad");
 
+    const isGemiAd =
+      input.providerName?.toLowerCase().includes("gemiad") ||
+      input.providerName?.toLowerCase().includes("gemlad") ||
+      pathStr.includes("gemiad") ||
+      pathStr.includes("gemlad") ||
+      reqMatchedPath.includes("gemiad") ||
+      reqInvokePath.includes("gemiad");
+
+    if (isGemiAd) {
+      return new NextResponse("Approved", {
+        status: 200,
+        headers: { "content-type": "text/plain" },
+      });
+    }
+
     if (isOfferwallNetwork) {
       return new NextResponse("1", {
         status: 200,
@@ -946,4 +961,23 @@ export async function GET(
   request: Request
 ) {
   return processPostback(request);
+}
+
+// ---------------------------------------------------------
+// HEAD & OPTIONS for network preflights and health checks
+// ---------------------------------------------------------
+
+export async function HEAD() {
+  return new NextResponse(null, { status: 200 });
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS, HEAD",
+      "Access-Control-Allow-Headers": "*",
+    },
+  });
 }

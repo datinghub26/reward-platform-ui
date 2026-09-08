@@ -55,7 +55,15 @@ const nextConfig: NextConfig = {
         destination: "/api/postback",
       },
       {
+        source: "/api/postback/gemiAd",
+        destination: "/api/postback",
+      },
+      {
         source: "/postback/gemiad",
+        destination: "/api/postback",
+      },
+      {
+        source: "/postback/gemiAd",
         destination: "/api/postback",
       },
       {
