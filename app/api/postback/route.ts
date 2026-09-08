@@ -835,6 +835,18 @@ async function processPostback(
         const points = Number(data.reward_points ?? 0);
         if (data.status === "approved" && points > 0) {
           try {
+            await supabaseAdmin.from("notifications").insert({
+              user_id: data.user_id,
+              type: "reward",
+              title: "Reward credited",
+              message: `You earned ${points.toLocaleString()} points from ${input.providerName || "an offer"}!`,
+              is_read: false,
+            });
+          } catch (notifErr) {
+            console.error("Failed to insert reward notification:", notifErr);
+          }
+
+          try {
             const { processReferralCommission } = await import("@/lib/referrals");
             await processReferralCommission(data.user_id, points);
           } catch (refErr) {
