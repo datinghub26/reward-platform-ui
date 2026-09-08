@@ -14,12 +14,22 @@ async function verifyAdmin() {
     return { authorized: false, error: "Authentication required." };
   }
 
-  const { data: isAdmin, error } = await supabase.rpc("is_admin");
-  if (error || !isAdmin) {
-    return { authorized: false, error: "Administrator access required." };
+  const { data: isAdmin } = await supabase.rpc("is_admin");
+  if (isAdmin === true) {
+    return { authorized: true, adminUser: user };
   }
 
-  return { authorized: true, adminUser: user };
+  const { data: adminRecord } = await supabaseAdmin
+    .from("admin_users")
+    .select("user_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (adminRecord) {
+    return { authorized: true, adminUser: user };
+  }
+
+  return { authorized: false, error: "Administrator access required." };
 }
 
 export async function getLeadDetailsAction(conversionId: string) {
@@ -221,5 +231,40 @@ export async function deleteLeadAction(conversionId: string) {
   } catch (err: unknown) {
     console.error("deleteLeadAction error:", err);
     return { success: false, error: (err as Error).message || "Failed to delete lead." };
+  }
+}
+
+export async function bulkDeleteLeadsAction(conversionIds: string[]) {
+  const auth = await verifyAdmin();
+  if (!auth.authorized) {
+    return { success: false, error: auth.error };
+  }
+
+  if (!conversionIds || conversionIds.length === 0) {
+    return { success: false, error: "No leads selected for deletion." };
+  }
+
+  try {
+    // Unlink conversion_ids from reward_ledger to satisfy foreign key constraints
+    await supabaseAdmin
+      .from("reward_ledger")
+      .update({ conversion_id: null })
+      .in("conversion_id", conversionIds);
+
+    const { error } = await supabaseAdmin
+      .from("conversions")
+      .delete()
+      .in("id", conversionIds);
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    revalidatePath("/admin/leads");
+    revalidatePath("/admin");
+    return { success: true, count: conversionIds.length };
+  } catch (err: unknown) {
+    console.error("bulkDeleteLeadsAction error:", err);
+    return { success: false, error: (err as Error).message || "Failed to bulk delete leads." };
   }
 }

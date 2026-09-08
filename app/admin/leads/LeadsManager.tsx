@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { reverseLeadAction, deleteLeadAction, getLeadDetailsAction } from "./actions";
+import { reverseLeadAction, deleteLeadAction, bulkDeleteLeadsAction, getLeadDetailsAction } from "./actions";
 
 export interface AdminLeadRecord {
   id: string;
@@ -68,6 +68,7 @@ export default function LeadsManager({
 
   // Action Loading & Toast State
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [toast, setToast] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
   const showToast = (text: string, type: "success" | "error" = "success") => {
@@ -176,6 +177,11 @@ export default function LeadsManager({
     const res = await deleteLeadAction(id);
     if (res.success) {
       setLeads((prev) => prev.filter((l) => l.id !== id));
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
       if (inspectingLead?.id === id) {
         setInspectingLead(null);
       }
@@ -184,6 +190,30 @@ export default function LeadsManager({
       showToast(res.error || "Failed to delete lead", "error");
     }
     setDeletingId(null);
+  };
+
+  // Bulk Delete Leads
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    const count = selectedIds.size;
+    if (!window.confirm(`Are you sure you want to permanently delete ${count} selected lead record${count > 1 ? "s" : ""}?`)) {
+      return;
+    }
+
+    setBulkDeleting(true);
+    const idsArray = Array.from(selectedIds);
+    const res = await bulkDeleteLeadsAction(idsArray);
+    if (res.success) {
+      setLeads((prev) => prev.filter((l) => !selectedIds.has(l.id)));
+      if (inspectingLead && selectedIds.has(inspectingLead.id)) {
+        setInspectingLead(null);
+      }
+      setSelectedIds(new Set());
+      showToast(`${count} lead record${count > 1 ? "s" : ""} deleted successfully.`);
+    } else {
+      showToast(res.error || "Failed to bulk delete leads", "error");
+    }
+    setBulkDeleting(false);
   };
 
   return (
@@ -210,8 +240,33 @@ export default function LeadsManager({
         </div>
       )}
 
-      <div className="admin-page-header">
+      <div className="admin-page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h1 className="admin-page-title">Leads Activity Log</h1>
+        {selectedIds.size > 0 && (
+          <button
+            type="button"
+            className="admin-btn-pill"
+            onClick={handleBulkDelete}
+            disabled={bulkDeleting}
+            style={{
+              backgroundColor: "rgba(239, 68, 68, 0.2)",
+              border: "1px solid rgba(239, 68, 68, 0.4)",
+              color: "#f87171",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              cursor: bulkDeleting ? "not-allowed" : "pointer",
+              opacity: bulkDeleting ? 0.7 : 1,
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 6h18"/>
+              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+            </svg>
+            <span>{bulkDeleting ? "Deleting..." : `Bulk Delete (${selectedIds.size})`}</span>
+          </button>
+        )}
       </div>
 
       {/* 2 Stat Cards */}
@@ -306,6 +361,36 @@ export default function LeadsManager({
                 </button>
               )}
             </span>
+
+            {selectedIds.size > 0 && (
+              <button
+                type="button"
+                className="admin-action-btn action-red"
+                onClick={handleBulkDelete}
+                disabled={bulkDeleting}
+                style={{
+                  padding: "5px 12px",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  borderRadius: "6px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  cursor: bulkDeleting ? "not-allowed" : "pointer",
+                  opacity: bulkDeleting ? 0.7 : 1,
+                  backgroundColor: "rgba(239, 68, 68, 0.15)",
+                  border: "1px solid rgba(239, 68, 68, 0.4)",
+                  color: "#f87171",
+                }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 6h18"/>
+                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+                  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                </svg>
+                <span>{bulkDeleting ? "Deleting..." : `Delete Selected (${selectedIds.size})`}</span>
+              </button>
+            )}
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
