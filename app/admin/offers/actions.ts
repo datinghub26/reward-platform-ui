@@ -32,11 +32,21 @@ async function verifyAdmin() {
   }
 
   const { data: isAdmin } = await supabase.rpc("is_admin");
-  if (isAdmin !== true) {
-    throw new Error("Administrator access required.");
+  if (isAdmin === true) {
+    return user;
   }
 
-  return user;
+  const { data: adminRecord } = await supabaseAdmin
+    .from("admin_users")
+    .select("user_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (adminRecord) {
+    return user;
+  }
+
+  throw new Error("Administrator access required.");
 }
 
 export async function createOffer(input: OfferInput) {

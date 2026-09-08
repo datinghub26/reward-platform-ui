@@ -520,7 +520,6 @@ async function processPostback(
           .update({
             reward_points: pointsAwarded,
             reward_usd: rawPayout > 0 ? rawPayout : pointsAwarded / 1000,
-            status: "active",
           })
           .eq("id", offerId);
       } else {
@@ -530,7 +529,7 @@ async function processPostback(
             title: displayOfferTitle,
             provider_name: providerName,
             reward_points: pointsAwarded,
-            status: "active",
+            status: "archived",
             reward_usd: rawPayout > 0 ? rawPayout : pointsAwarded / 1000,
           })
           .select("id")
