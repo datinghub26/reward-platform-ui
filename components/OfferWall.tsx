@@ -44,9 +44,11 @@ export default function OfferWall({
   userIdNumber?: string | number;
 }) {
   const topOffers = useMemo(() => {
-    const eligible = offers.filter((o) => isOfferEligibleForCountry(o.countries, profileCountry));
-
-    return [...eligible].sort((a, b) => {
+    // Ensure all active marketplace offers are visible, prioritizing country-matched offers first
+    return [...offers].sort((a, b) => {
+      const aMatches = isOfferEligibleForCountry(a.countries, profileCountry);
+      const bMatches = isOfferEligibleForCountry(b.countries, profileCountry);
+      if (aMatches !== bMatches) return aMatches ? -1 : 1;
       if (a.featured !== b.featured) return Number(b.featured) - Number(a.featured);
       if (b.priority !== a.priority) return b.priority - a.priority;
       return b.reward_points - a.reward_points;
@@ -194,9 +196,44 @@ export default function OfferWall({
                         >
                           {offer.provider_name}
                         </div>
-                        <span className="badge" style={{ fontSize: "10px", padding: "1px 6px" }}>
-                          {offer.offer_type}
-                        </span>
+                        <div style={{ display: "flex", alignItems: "center", gap: "5px", flexWrap: "wrap", marginTop: "2px" }}>
+                          <span className="badge" style={{ fontSize: "10px", padding: "1px 6px" }}>
+                            {offer.offer_type}
+                          </span>
+                          {offer.countries && offer.countries.length > 0 && !offer.countries.includes("ALL") ? (
+                            <span
+                              className="badge"
+                              style={{
+                                fontSize: "10px",
+                                padding: "1px 6px",
+                                background: isOfferEligibleForCountry(offer.countries, profileCountry)
+                                  ? "rgba(34, 197, 94, 0.15)"
+                                  : "rgba(255, 255, 255, 0.08)",
+                                color: isOfferEligibleForCountry(offer.countries, profileCountry)
+                                  ? "#4ade80"
+                                  : "var(--muted)",
+                                border: isOfferEligibleForCountry(offer.countries, profileCountry)
+                                  ? "1px solid rgba(34, 197, 94, 0.3)"
+                                  : "1px solid rgba(255, 255, 255, 0.1)",
+                              }}
+                            >
+                              📍 {offer.countries.join(", ")}
+                            </span>
+                          ) : (
+                            <span
+                              className="badge"
+                              style={{
+                                fontSize: "10px",
+                                padding: "1px 6px",
+                                background: "rgba(34, 197, 94, 0.15)",
+                                color: "#4ade80",
+                                border: "1px solid rgba(34, 197, 94, 0.3)",
+                              }}
+                            >
+                              🌐 Global
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                     {offer.featured && (
