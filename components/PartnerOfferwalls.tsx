@@ -222,10 +222,11 @@ export default function PartnerOfferwalls({
                   ★ {prov.rate || "5.0"}
                 </div>
 
-                <button
-                  type="button"
+                <a
+                  href={buildLaunchUrl(prov.url, userId)}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="btn btn-primary"
-                  onClick={() => setActiveProvider(prov)}
                   style={{
                     padding: "7px 14px",
                     fontSize: "12px",
@@ -233,11 +234,12 @@ export default function PartnerOfferwalls({
                     display: "inline-flex",
                     alignItems: "center",
                     gap: "6px",
+                    textDecoration: "none",
                   }}
                 >
                   <span>Open Wall</span>
-                  <span>→</span>
-                </button>
+                  <span>↗</span>
+                </a>
               </div>
             </div>
           );
