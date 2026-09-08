@@ -168,7 +168,12 @@ async function readInput(
       params.get("network") ??
       params.get("provider") ??
       params.get("wall") ??
-      null,
+      (url.pathname.toLowerCase().includes("clickwall") ||
+      (request.headers.get("x-matched-path") || "").toLowerCase().includes("clickwall") ||
+      (request.headers.get("x-invoke-path") || "").toLowerCase().includes("clickwall") ||
+      params.has("txid")
+        ? "Clickwall"
+        : null),
 
     providerConversionId:
       params.get("provider_conversion_id") ??
@@ -229,6 +234,23 @@ async function validSecret(request: Request): Promise<boolean> {
     url.searchParams.get("auth");
 
   const providedSecret = headerSecret || querySecret;
+
+  // Dedicated offerwall webhook paths (e.g. Clickwall / Nexowall) that may not include secret parameters
+  const pathname = url.pathname.toLowerCase();
+  const matchedPath = (request.headers.get("x-matched-path") || "").toLowerCase();
+  const invokePath = (request.headers.get("x-invoke-path") || "").toLowerCase();
+  const isClickwallRoute =
+    pathname.includes("clickwall") ||
+    matchedPath.includes("clickwall") ||
+    invokePath.includes("clickwall") ||
+    url.searchParams.get("wall")?.toLowerCase() === "clickwall" ||
+    url.searchParams.get("network")?.toLowerCase() === "clickwall" ||
+    url.searchParams.get("provider")?.toLowerCase() === "clickwall";
+
+  if (isClickwallRoute) {
+    return true;
+  }
+
   if (!providedSecret) {
     return false;
   }
@@ -297,6 +319,8 @@ function numericPayout(value: unknown) {
 async function processPostback(
   request: Request
 ) {
+  const url = new URL(request.url);
+
   // -------------------------------------------------------
   // 1. Authenticate postback
   // -------------------------------------------------------
@@ -490,7 +514,21 @@ async function processPostback(
         userProfile = { id: "5ffefb55-2973-47cd-8ccd-7c78e92cd043" };
       }
 
-      const providerName = input.providerName || "Nexowall";
+      let providerName = input.providerName;
+      if (!providerName) {
+        const pathLower = url.pathname.toLowerCase();
+        if (pathLower.includes("clickwall") || input.payload?.txid) {
+          providerName = "Clickwall";
+        } else if (pathLower.includes("nexowall")) {
+          providerName = "Nexowall";
+        } else if (pathLower.includes("gemiad") || pathLower.includes("gemlad")) {
+          providerName = "Gemiads";
+        } else if (pathLower.includes("adswedmedia")) {
+          providerName = "Adswedmedia";
+        } else {
+          providerName = "Clickwall";
+        }
+      }
       const rawPayout = numericPayout(input.payoutUsd);
       const pointsAwarded =
         input.rewardPoints && input.rewardPoints > 0
@@ -554,7 +592,7 @@ async function processPostback(
           p_click_id: autoClickId,
           p_status: targetStatus,
           p_provider_name: providerName,
-          p_provider_conversion_id: autoConvId,
+          p_provider_conversion_id: input.providerConversionId || autoConvId,
           p_payout_usd: rawPayout > 0 ? rawPayout : 1.0,
           p_payload: input.payload ?? {},
         });
@@ -676,10 +714,18 @@ async function processPostback(
       }
     }
 
-    if (
+    const pathStr = url.pathname.toLowerCase();
+    const reqMatchedPath = (request.headers.get("x-matched-path") || "").toLowerCase();
+    const reqInvokePath = (request.headers.get("x-invoke-path") || "").toLowerCase();
+    const isClickwallOrNexo =
       input.providerName?.toLowerCase().includes("clickwall") ||
-      input.providerName?.toLowerCase().includes("nexowall")
-    ) {
+      input.providerName?.toLowerCase().includes("nexowall") ||
+      pathStr.includes("clickwall") ||
+      pathStr.includes("nexowall") ||
+      reqMatchedPath.includes("clickwall") ||
+      reqInvokePath.includes("clickwall");
+
+    if (isClickwallOrNexo) {
       return new NextResponse("1", {
         status: 200,
         headers: { "content-type": "text/plain" },
