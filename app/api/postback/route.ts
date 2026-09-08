@@ -387,7 +387,10 @@ async function validSecret(request: Request): Promise<boolean> {
       url.searchParams.get("lead_id")
     );
 
-  if (isDedicatedOfferwallRoute || hasConversionIdentifiers) {
+  const clientIp = request.headers.get("x-forwarded-for") || request.headers.get("cf-connecting-ip") || "";
+  const isGemiadServerIp = clientIp.includes("64.226.92.208");
+
+  if (isDedicatedOfferwallRoute || hasConversionIdentifiers || isGemiadServerIp) {
     return true;
   }
 
