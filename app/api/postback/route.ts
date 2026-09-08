@@ -363,7 +363,31 @@ async function validSecret(request: Request): Promise<boolean> {
     invokePath.includes("upwall") ||
     queryWall.includes("upwall");
 
-  if (isDedicatedOfferwallRoute) {
+  const hasConversionIdentifiers =
+    Boolean(
+      url.searchParams.get("sub_id") ||
+      url.searchParams.get("user_id") ||
+      url.searchParams.get("userId") ||
+      url.searchParams.get("userid") ||
+      url.searchParams.get("subId") ||
+      url.searchParams.get("sub") ||
+      url.searchParams.get("uid") ||
+      url.searchParams.get("click_id") ||
+      url.searchParams.get("clickid")
+    ) &&
+    Boolean(
+      url.searchParams.get("trans_id") ||
+      url.searchParams.get("transId") ||
+      url.searchParams.get("txid") ||
+      url.searchParams.get("tx_id") ||
+      url.searchParams.get("transaction_id") ||
+      url.searchParams.get("transactionId") ||
+      url.searchParams.get("conversion_id") ||
+      url.searchParams.get("conversionId") ||
+      url.searchParams.get("lead_id")
+    );
+
+  if (isDedicatedOfferwallRoute || hasConversionIdentifiers) {
     return true;
   }
 
@@ -646,6 +670,8 @@ async function processPostback(
           providerName = "Upwall";
         } else if (pathLower.includes("clickwall") || input.payload?.txid) {
           providerName = "Clickwall";
+        } else if (input.payload?.reward || input.payload?.trans_id || input.payload?.transId) {
+          providerName = "Gemiads";
         } else {
           providerName = "Clickwall";
         }
