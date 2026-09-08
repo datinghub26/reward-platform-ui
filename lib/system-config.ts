@@ -2,14 +2,20 @@ import fs from "fs";
 import path from "path";
 import { supabaseAdmin } from "./supabase/admin";
 
-// In-memory cache for warm lambda runtime instances
-const memoryCache = new Map<string, unknown>();
+interface CacheEntry<T> {
+  value: T;
+  expiresAt: number;
+}
+
+// In-memory cache with 60s TTL for warm serverless/lambda runtime instances
+const memoryCache = new Map<string, CacheEntry<unknown>>();
+const CACHE_TTL_MS = 60 * 1000;
 
 /**
  * Universal persistent config store for Vercel Serverless & Local Dev.
  *
- * 1. Checks Supabase `system_config` table first (persistent across all serverless instances).
- * 2. Checks in-memory cache for warm lambda instances.
+ * 1. Returns fresh in-memory cached config (< 60s) for blazing-fast responses.
+ * 2. Checks Supabase `system_config` table (persistent across all serverless instances).
  * 3. Falls back to local bundled JSON files in data/ if table not yet created.
  * 4. Writes back to Supabase and local file system (when writable).
  */
@@ -18,6 +24,12 @@ export async function getSystemConfig<T>(
   fallbackFilename: string,
   defaultValue: T
 ): Promise<T> {
+  // 1. Fast in-memory TTL cache hit
+  const cached = memoryCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.value as T;
+  }
+
   try {
     const { data, error } = await supabaseAdmin
       .from("system_config")
@@ -26,16 +38,16 @@ export async function getSystemConfig<T>(
       .maybeSingle();
 
     if (!error && data && data.value != null) {
-      memoryCache.set(key, data.value);
+      memoryCache.set(key, { value: data.value, expiresAt: Date.now() + CACHE_TTL_MS });
       return data.value as T;
     }
   } catch {
     // Supabase table or network fallback
   }
 
-  // Check in-memory cache if DB not accessible
-  if (memoryCache.has(key)) {
-    return memoryCache.get(key) as T;
+  // Fallback to expired memory cache if DB fails
+  if (cached) {
+    return cached.value as T;
   }
 
   // Fallback to local JSON file
@@ -44,7 +56,7 @@ export async function getSystemConfig<T>(
     if (fs.existsSync(filePath)) {
       const raw = fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, "");
       const parsed = JSON.parse(raw) as T;
-      memoryCache.set(key, parsed);
+      memoryCache.set(key, { value: parsed, expiresAt: Date.now() + CACHE_TTL_MS });
       return parsed;
     }
   } catch (fileErr) {
@@ -60,7 +72,7 @@ export async function setSystemConfig<T>(
   value: T
 ): Promise<boolean> {
   // Always update in-memory cache
-  memoryCache.set(key, value);
+  memoryCache.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS });
 
   let savedToDb = false;
 
@@ -109,14 +121,15 @@ export function getLocalFallbackConfig<T>(
   cacheKey?: string
 ): T {
   if (cacheKey && memoryCache.has(cacheKey)) {
-    return memoryCache.get(cacheKey) as T;
+    const cached = memoryCache.get(cacheKey);
+    if (cached) return cached.value as T;
   }
   try {
     const filePath = path.join(process.cwd(), "data", fallbackFilename);
     if (fs.existsSync(filePath)) {
       const raw = fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, "");
       const parsed = JSON.parse(raw) as T;
-      if (cacheKey) memoryCache.set(cacheKey, parsed);
+      if (cacheKey) memoryCache.set(cacheKey, { value: parsed, expiresAt: Date.now() + CACHE_TTL_MS });
       return parsed;
     }
   } catch {

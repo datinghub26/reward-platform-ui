@@ -56,6 +56,7 @@ export async function getClientGeo(): Promise<ClientGeo> {
     try {
       const res = await fetch(`https://api.country.is/${ip}`, {
         next: { revalidate: 3600 },
+        signal: AbortSignal.timeout(1200),
       });
       if (res.ok) {
         const data = await res.json();
@@ -75,6 +76,7 @@ export async function getClientGeo(): Promise<ClientGeo> {
   try {
     const res = await fetch("https://api.country.is/", {
       next: { revalidate: 3600 },
+      signal: AbortSignal.timeout(1200),
     });
     if (res.ok) {
       const data = await res.json();
