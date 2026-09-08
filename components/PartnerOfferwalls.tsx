@@ -16,12 +16,17 @@ export function buildLaunchUrl(template: string, userId: string): string {
   // Handle ClickWall specific route structure: /app/iframe/{appId}/user_id={userId}
   if (url.includes("clickwall.net")) {
     if (/user_id=[^/&?#]+/i.test(url)) {
-      url = url.replace(/user_id=[^/&?#]+/gi, `user_id=${encodeURIComponent(cleanId)}`);
+      url = url.replace(/user_id=[^/&?#]+/gi, () => `user_id=${encodeURIComponent(cleanId)}`);
     } else if (/(?:\/)?(?:\{user_id\}|\{userid\}|\{userId\}|\[USER_ID\])/i.test(url)) {
-      url = url.replace(/(?:\/)?(?:\{user_id\}|\{userid\}|\{userId\}|\[USER_ID\])/gi, `/user_id=${encodeURIComponent(cleanId)}`);
+      url = url.replace(/(?:\/)?(?:\{user_id\}|\{userid\}|\{userId\}|\[USER_ID\])/gi, () => `/user_id=${encodeURIComponent(cleanId)}`);
     } else {
       url = url.replace(/\/+$/, "") + `/user_id=${encodeURIComponent(cleanId)}`;
     }
+  }
+
+  // Replace existing query parameter user_id=... (e.g. if user_id=11 was hardcoded)
+  if (/([?&]user_id=)[^&#]*/i.test(url)) {
+    url = url.replace(/([?&]user_id=)[^&#]*/gi, (_match, p1) => `${p1}${encodeURIComponent(cleanId)}`);
   }
 
   // Replace standard tokens for all offerwalls

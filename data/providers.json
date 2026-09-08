@@ -1,9 +1,9 @@
 [
   {
-    "id": "clickwall",
-    "url": "https://clickwall.net/app/iframe/10745/user_id={user_id}",
+    "id": "nexowall",
+    "url": "https://nexowall.me/live-offers?app_id=J92ua8Q9Ra4Oa13N&user_id={user_id}",
     "logo": "⚡",
-    "name": "ClickWall",
+    "name": "Nexowall",
     "rate": "5",
     "type": "offer",
     "badge": "80%",
@@ -15,20 +15,20 @@
   {
     "id": "adswedmedia",
     "url": "https://adswedmedia.com/offer/Mc2Tr4/{user_id}",
-    "logo": "🔥",
+    "logo": "⚡",
     "name": "Adswedmedia",
     "rate": "5",
     "type": "offer",
     "badge": "80%",
-    "color": "#f97316",
+    "color": "#22c55e",
     "active": true,
     "show_rate": true,
     "description": "Top-converting CPI, trial signups, and high reward gaming campaigns."
   },
   {
     "id": "gemlads",
-    "url": "https://gemiwall.com/?placementid=6a9e310ea777a90b91c94cec&user_id={user_id}",
-    "logo": "💎",
+    "url": "https://gemiwall.com?placementId=6a9e310ea777a90b91c94cec&userId={USER_ID}",
+    "logo": "⚡",
     "name": "Gemiads",
     "rate": "5",
     "type": "offer",
@@ -102,18 +102,5 @@
     "active": false,
     "show_rate": false,
     "description": "Crypto and web3 task offerwall with guaranteed postback credit."
-  },
-  {
-    "id": "nexowall",
-    "name": "Nexowall",
-    "type": "offer",
-    "badge": "80%",
-    "active": true,
-    "url": "https://nexowall.me/live-offers?app_id=J92ua8Q9Ra4Oa13N&user_id={user_id}",
-    "show_rate": true,
-    "rate": "5",
-    "logo": "🌐",
-    "description": "High-paying mobile apps, tasks, and reward offers.",
-    "color": "#6366f1"
   }
 ]
