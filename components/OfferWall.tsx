@@ -236,8 +236,6 @@ export default function OfferWall({
         </div>
       )}
 
-      {partnerOfferwallsSlot}
-
       {topOffers.length > 0 && (
         <section className="dashboard-section" style={{ marginBottom: 28 }}>
           <div className="section-head" style={{ marginBottom: 14 }}>
@@ -390,6 +388,8 @@ export default function OfferWall({
           </div>
         </section>
       )}
+
+      {partnerOfferwallsSlot}
 
       <section className="earn-toolbar">
         <div className="earn-search">
