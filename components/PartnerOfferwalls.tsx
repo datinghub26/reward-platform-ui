@@ -33,13 +33,18 @@ export function buildLaunchUrl(template: string, userId: string): string {
   url = url
     .replace(/\{user_id\}/gi, encodeURIComponent(cleanId))
     .replace(/\{userid\}/gi, encodeURIComponent(cleanId))
-    .replace(/\{userId\}/g, encodeURIComponent(cleanId))
+    .replace(/\{userId\}/gi, encodeURIComponent(cleanId))
     .replace(/\[USER_ID\]/gi, encodeURIComponent(cleanId))
     .replace(/\{sub_id\}/gi, encodeURIComponent(cleanId))
     .replace(/\{subid\}/gi, encodeURIComponent(cleanId));
 
+  // Replace existing query parameter userId=...
+  if (/([?&]userId=)[^&#]*/i.test(url)) {
+    url = url.replace(/([?&]userId=)[^&#]*/gi, (_match, p1) => `${p1}${encodeURIComponent(cleanId)}`);
+  }
+
   // Ensure user_id identifier is present across all offerwall links
-  if (!url.includes("user_id=")) {
+  if (!url.includes("user_id=") && !url.includes("userId=")) {
     const separator = url.includes("?") ? "&" : "?";
     url = `${url}${separator}user_id=${encodeURIComponent(cleanId)}`;
   }

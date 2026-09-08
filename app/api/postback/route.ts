@@ -207,7 +207,13 @@ async function readInput(
                                 ? params.getAll("userid")
                                 : params.getAll("uid").length
                                   ? params.getAll("uid")
-                                  : params.getAll("user")
+                                  : params.getAll("user").length
+                                    ? params.getAll("user")
+                                    : params.getAll("txid").length
+                                      ? params.getAll("txid")
+                                      : params.getAll("tx_id").length
+                                        ? params.getAll("tx_id")
+                                        : params.getAll("trans_id")
     ),
 
     userId: firstValue(
@@ -491,6 +497,17 @@ async function processPostback(
     const input =
       await readInput(request);
 
+    const pathStr = url.pathname.toLowerCase();
+    const reqMatchedPath = (request.headers.get("x-matched-path") || "").toLowerCase();
+    const reqInvokePath = (request.headers.get("x-invoke-path") || "").toLowerCase();
+    const isGemiAd =
+      input.providerName?.toLowerCase().includes("gemiad") ||
+      input.providerName?.toLowerCase().includes("gemlad") ||
+      pathStr.includes("gemiad") ||
+      pathStr.includes("gemlad") ||
+      reqMatchedPath.includes("gemiad") ||
+      reqInvokePath.includes("gemiad");
+
     // -----------------------------------------------------
     // 3. Validate Click ID
     // -----------------------------------------------------
@@ -500,15 +517,19 @@ async function processPostback(
       typeof input.clickId !== "string" ||
       !input.clickId.trim()
     ) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "click_id is required",
-        },
-        {
-          status: 400,
-        }
-      );
+      if (isGemiAd) {
+        input.clickId = input.providerConversionId || `gemiad-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      } else {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: "click_id is required",
+          },
+          {
+            status: 400,
+          }
+        );
+      }
     }
 
     // -----------------------------------------------------
@@ -761,6 +782,13 @@ async function processPostback(
         error
       );
 
+      if (isGemiAd) {
+        return new NextResponse("Approved", {
+          status: 200,
+          headers: { "content-type": "text/plain" },
+        });
+      }
+
       const message =
         error.message.toLowerCase();
 
@@ -876,9 +904,6 @@ async function processPostback(
       }
     }
 
-    const pathStr = url.pathname.toLowerCase();
-    const reqMatchedPath = (request.headers.get("x-matched-path") || "").toLowerCase();
-    const reqInvokePath = (request.headers.get("x-invoke-path") || "").toLowerCase();
     const isOfferwallNetwork =
       input.providerName?.toLowerCase().includes("clickwall") ||
       input.providerName?.toLowerCase().includes("nexowall") ||
@@ -896,14 +921,6 @@ async function processPostback(
       pathStr.includes("upwall") ||
       reqMatchedPath.includes("clickwall") ||
       reqInvokePath.includes("clickwall") ||
-      reqMatchedPath.includes("gemiad") ||
-      reqInvokePath.includes("gemiad");
-
-    const isGemiAd =
-      input.providerName?.toLowerCase().includes("gemiad") ||
-      input.providerName?.toLowerCase().includes("gemlad") ||
-      pathStr.includes("gemiad") ||
-      pathStr.includes("gemlad") ||
       reqMatchedPath.includes("gemiad") ||
       reqInvokePath.includes("gemiad");
 
@@ -929,6 +946,21 @@ async function processPostback(
       "Postback request error:",
       error
     );
+
+    const pathStr = url.pathname.toLowerCase();
+    const reqMatchedPath = (request.headers.get("x-matched-path") || "").toLowerCase();
+    const reqInvokePath = (request.headers.get("x-invoke-path") || "").toLowerCase();
+    if (
+      pathStr.includes("gemiad") ||
+      pathStr.includes("gemlad") ||
+      reqMatchedPath.includes("gemiad") ||
+      reqInvokePath.includes("gemiad")
+    ) {
+      return new NextResponse("Approved", {
+        status: 200,
+        headers: { "content-type": "text/plain" },
+      });
+    }
 
     return NextResponse.json(
       {
