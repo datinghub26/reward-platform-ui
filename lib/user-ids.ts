@@ -43,7 +43,8 @@ export async function getOrAssignUserNumericIdAsync(userId: string): Promise<num
 }
 
 export async function findUserIdByNumericIdAsync(numericId: number | string): Promise<string | null> {
-  const target = Number(numericId);
+  const clean = String(numericId ?? "").replace(/^[#\s]+/, "").trim();
+  const target = Number(clean);
   if (!Number.isFinite(target)) return null;
 
   if (target === 10 || target === 6) {

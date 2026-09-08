@@ -442,7 +442,7 @@ async function processPostback(
     // If Unknown click_id, check if input.clickId or userId is a registered user profile
     // (This enables seamless crediting for external partner offerwall callbacks like Klink, Adswedmedia, Gemlads, Notik)
     if (error && error.message.toLowerCase().includes("unknown click_id")) {
-      const candidateUserId = (input.userId || input.clickId).trim();
+      const candidateUserId = (input.userId || input.clickId).trim().replace(/^[#\s]+/, "");
 
       // Resolve user profile: supports full UUID, UUID prefix (e.g. "6"), or email address
       let userProfile: { id: string } | null = null;
