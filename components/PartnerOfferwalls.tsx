@@ -104,9 +104,9 @@ export default function PartnerOfferwalls({
               type="button"
               onClick={() => setFilter(mode)}
               style={{
-                background: filter === mode ? "rgba(34, 197, 94, 0.15)" : "rgba(255, 255, 255, 0.04)",
-                border: `1px solid ${filter === mode ? "rgba(34, 197, 94, 0.4)" : "rgba(255, 255, 255, 0.08)"}`,
-                color: filter === mode ? "#4ade80" : "var(--muted)",
+                background: filter === mode ? "rgba(225, 29, 72, 0.18)" : "rgba(255, 255, 255, 0.04)",
+                border: `1px solid ${filter === mode ? "rgba(255, 77, 109, 0.4)" : "rgba(255, 255, 255, 0.08)"}`,
+                color: filter === mode ? "#ff4d6d" : "var(--muted)",
                 borderRadius: "20px",
                 padding: "6px 14px",
                 fontSize: "12px",
@@ -159,7 +159,7 @@ export default function PartnerOfferwalls({
                   left: 0,
                   right: 0,
                   height: "3px",
-                  backgroundColor: prov.color || "#22c55e",
+                  backgroundColor: prov.color || "#e11d48",
                   opacity: 0.8,
                 }}
               />
@@ -192,9 +192,9 @@ export default function PartnerOfferwalls({
                     {prov.badge && (
                       <span
                         style={{
-                          backgroundColor: "rgba(34, 197, 94, 0.15)",
-                          border: "1px solid rgba(34, 197, 94, 0.3)",
-                          color: "#4ade80",
+                          backgroundColor: "rgba(225, 29, 72, 0.18)",
+                          border: "1px solid rgba(255, 77, 109, 0.35)",
+                          color: "#ff4d6d",
                           fontSize: "11px",
                           fontWeight: 700,
                           padding: "2px 8px",

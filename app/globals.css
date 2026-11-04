@@ -1,31 +1,31 @@
 :root {
-  --bg: #020b07;
-  --panel: #07120d;
-  --panel-2: #0b1f15;
-  --border: rgba(84, 232, 139, 0.16);
-  --text: #edf9f2;
-  --muted: #8ea598;
-  --primary: #18b26b;
-  --primary-2: #108d4b;
-  --primary-strong: #0d7c40;
+  --bg: #080709;
+  --panel: #0f0d12;
+  --panel-2: #18151d;
+  --border: rgba(225, 29, 72, 0.18);
+  --text: #fbf6f7;
+  --muted: #9d8e92;
+  --primary: #e11d48;
+  --primary-2: #be123c;
+  --primary-strong: #9f1239;
   --success: #18b26b;
   --warning: #f5cc63;
   --danger: #e11d48;
   --ruby: #e11d48;
-  --emerald: #18b26b;
-  --accent: #54e88b;
-  --soft: rgba(24, 178, 107, 0.12);
+  --emerald: #e11d48;
+  --accent: #ff4d6d;
+  --soft: rgba(225, 29, 72, 0.12);
 }
 
 * { box-sizing: border-box; }
 
-html { scroll-behavior: smooth; background: #020b07; }
+html { scroll-behavior: smooth; background: #080709; }
 
 body {
   margin: 0;
   background:
-    radial-gradient(circle at 12% 0%, rgba(24, 178, 107, 0.14), transparent 32%),
-    radial-gradient(circle at 88% 12%, rgba(84, 232, 139, 0.08), transparent 28%),
+    radial-gradient(circle at 12% 0%, rgba(225, 29, 72, 0.14), transparent 32%),
+    radial-gradient(circle at 88% 12%, rgba(255, 77, 109, 0.07), transparent 28%),
     var(--bg);
   color: var(--text);
   font-family: var(--font-inter), Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -47,7 +47,7 @@ button {
   top: 0;
   z-index: 20;
   backdrop-filter: blur(18px);
-  background: rgba(3, 10, 7, 0.90);
+  background: rgba(8, 7, 9, 0.92);
   border-bottom: 1px solid var(--border);
 }
 
@@ -74,9 +74,9 @@ button {
   display: grid;
   place-items: center;
   border-radius: 11px;
-  background: linear-gradient(135deg, #18b26b, #108d4b);
+  background: linear-gradient(135deg, #e11d48, #be123c);
   color: #ffffff;
-  box-shadow: 0 8px 20px rgba(24, 178, 107, 0.3);
+  box-shadow: 0 8px 20px rgba(225, 29, 72, 0.35);
 }
 
 .nav-links {
@@ -90,24 +90,33 @@ button {
 
 .nav-actions {
   display: flex;
+  align-items: center;
   gap: 10px;
 }
 
 .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  line-height: 1.2;
   border: 1px solid var(--border);
   border-radius: 11px;
-  padding: 11px 16px;
+  padding: 11px 18px;
   cursor: pointer;
   color: var(--text);
   background: rgba(255,255,255,.04);
+  text-align: center;
+  font-weight: 600;
+  transition: all 0.15s ease;
 }
 
 .btn-primary {
-  border: 1px solid rgba(129, 255, 177, 0.28);
-  background: linear-gradient(135deg, #18b26b, #108d4b);
+  border: 1px solid rgba(255, 120, 140, 0.28);
+  background: linear-gradient(135deg, #e11d48, #be123c);
   color: #ffffff;
   font-weight: 700;
-  box-shadow: 0 10px 24px rgba(16, 169, 87, 0.28);
+  box-shadow: 0 10px 24px rgba(225, 29, 72, 0.30);
 }
 
 .btn-large {
@@ -140,7 +149,7 @@ button {
 }
 
 .gradient-text {
-  background: linear-gradient(135deg, #fff, #a99aff 55%, #68e6b2);
+  background: linear-gradient(135deg, #fff, #ffa0b2 55%, #ff4d6d);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -250,7 +259,7 @@ button {
 }
 
 .reward {
-  color: #7ce9b5;
+  color: var(--accent);
   font-weight: 800;
   font-size: 22px;
   margin-top: auto;
@@ -303,7 +312,7 @@ button {
   top: 0;
   height: 100vh;
   border-right: 1px solid var(--border);
-  background: #030a07;
+  background: #0b090d;
   padding: 20px 14px;
 }
 
@@ -316,7 +325,7 @@ button {
 .side-nav a {
   padding: 12px 13px;
   border-radius: 9px;
-  color: #b3c6ba;
+  color: #c7b8bc;
   font-size: 14px;
   font-weight: 600;
   transition: all .15s ease;
@@ -324,14 +333,14 @@ button {
 
 .side-nav a:hover {
   color: #ffffff;
-  background: rgba(24, 178, 107, 0.10);
+  background: rgba(225, 29, 72, 0.12);
 }
 
 .side-nav a.active {
-  background: #108d4b;
+  background: #be123c;
   color: #ffffff;
-  border: 1px solid rgba(129, 255, 177, 0.28);
-  box-shadow: inset 0 0 0 1px rgba(129, 255, 177, 0.20), 0 10px 24px rgba(16, 169, 87, 0.22);
+  border: 1px solid rgba(255, 120, 140, 0.32);
+  box-shadow: inset 0 0 0 1px rgba(255, 120, 140, 0.20), 0 10px 24px rgba(225, 29, 72, 0.28);
 }
 
 .dashboard-main {

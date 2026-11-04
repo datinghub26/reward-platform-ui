@@ -281,7 +281,7 @@ export default function OfferWall({
                   }}
                 >
                   <div>
-                    <div style={{ fontWeight: 700, color: "#86efac", fontSize: "14px" }}>
+                    <div style={{ fontWeight: 700, color: "var(--accent)", fontSize: "14px" }}>
                       +{offer.reward_points.toLocaleString()} pts
                     </div>
                     {offer.reward_usd != null && (

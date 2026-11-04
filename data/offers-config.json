@@ -47,8 +47,17 @@
     },
     "notik": {
       "name": "Notik",
-      "apiKey": "EsK1MWFnCStLmJ2CJJL",
+      "apiKey": "YJ1cN1rzF7HFQUzD819chjsCzL4kmTZi",
       "secret": "",
+      "pubId": "l3icib",
+      "appId": "CFGU6xt4mO",
+      "active": true
+    },
+    "clickwall": {
+      "name": "ClickWall",
+      "apiKey": "b18db5bcf8c3f1d5a01e1485df7dce5f",
+      "secret": "a06e1b32578ca5131694c244f4bdeba8",
+      "appId": "10745",
       "active": true
     }
   }

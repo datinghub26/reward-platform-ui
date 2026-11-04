@@ -177,6 +177,14 @@ async function readInput(
     params.get("provider")?.toLowerCase().includes("clickwall") ||
     params.has("txid");
 
+  const isNotik =
+    pathStr.includes("notik") ||
+    reqMatchedPath.includes("notik") ||
+    reqInvokePath.includes("notik") ||
+    params.get("wall")?.toLowerCase().includes("notik") ||
+    params.get("network")?.toLowerCase().includes("notik") ||
+    params.get("provider")?.toLowerCase().includes("notik");
+
   return {
     clickId: firstValue(
       params.getAll("click_id").length
@@ -255,7 +263,9 @@ async function readInput(
             ? "Adswedmedia"
             : isClickwall
               ? "Clickwall"
-              : null),
+              : isNotik
+                ? "Notik"
+                : null),
 
     providerConversionId:
       params.get("provider_conversion_id") ??
@@ -266,6 +276,8 @@ async function readInput(
       params.get("trans_id") ??
       params.get("transId") ??
       params.get("transid") ??
+      params.get("txn_id") ??
+      params.get("txnid") ??
       params.get("tx_id") ??
       params.get("txid") ??
       params.get("lead_id") ??
@@ -367,7 +379,11 @@ async function validSecret(request: Request): Promise<boolean> {
     pathname.includes("upwall") ||
     matchedPath.includes("upwall") ||
     invokePath.includes("upwall") ||
-    queryWall.includes("upwall");
+    queryWall.includes("upwall") ||
+    pathname.includes("notik") ||
+    matchedPath.includes("notik") ||
+    invokePath.includes("notik") ||
+    queryWall.includes("notik");
 
   const hasConversionIdentifiers =
     Boolean(
@@ -384,6 +400,8 @@ async function validSecret(request: Request): Promise<boolean> {
     Boolean(
       url.searchParams.get("trans_id") ||
       url.searchParams.get("transId") ||
+      url.searchParams.get("txn_id") ||
+      url.searchParams.get("txnid") ||
       url.searchParams.get("txid") ||
       url.searchParams.get("tx_id") ||
       url.searchParams.get("transaction_id") ||
@@ -411,7 +429,8 @@ async function validSecret(request: Request): Promise<boolean> {
     providedSecret === "rewardnova-secure-postback-secret" ||
     providedSecret === "6a9e310ea777a90b91c94cec" ||
     providedSecret === "10ec287148695fe8f53657961b817e8832d2736860fd2270c08d4db41d94d94d" ||
-    providedSecret === "4bfd5a91-c6c9-450a-96a5-1371edfe114d"
+    providedSecret === "4bfd5a91-c6c9-450a-96a5-1371edfe114d" ||
+    providedSecret === "a06e1b32578ca5131694c244f4bdeba8"
   ) {
     return true;
   }
@@ -694,6 +713,8 @@ async function processPostback(
           providerName = "Upwall";
         } else if (pathLower.includes("clickwall") || input.payload?.txid) {
           providerName = "Clickwall";
+        } else if (pathLower.includes("notik") || url.searchParams.get("wall")?.toLowerCase().includes("notik")) {
+          providerName = "Notik";
         } else if (input.payload?.reward || input.payload?.trans_id || input.payload?.transId) {
           providerName = "Gemiads";
         } else {
@@ -912,6 +933,7 @@ async function processPostback(
       input.providerName?.toLowerCase().includes("adswedmedia") ||
       input.providerName?.toLowerCase().includes("adswebmedia") ||
       input.providerName?.toLowerCase().includes("upwall") ||
+      input.providerName?.toLowerCase().includes("notik") ||
       pathStr.includes("clickwall") ||
       pathStr.includes("nexowall") ||
       pathStr.includes("gemiad") ||
@@ -919,6 +941,7 @@ async function processPostback(
       pathStr.includes("adswedmedia") ||
       pathStr.includes("adswebmedia") ||
       pathStr.includes("upwall") ||
+      pathStr.includes("notik") ||
       reqMatchedPath.includes("clickwall") ||
       reqInvokePath.includes("clickwall") ||
       reqMatchedPath.includes("gemiad") ||
