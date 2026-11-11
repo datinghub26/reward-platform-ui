@@ -595,12 +595,15 @@ async function processPostback(
     // Check if points exceed pending threshold
     if (settings.enablePendingLeads && targetStatus === "approved") {
       const payoutVal = numericPayout(input.payoutUsd);
-      const estimatedPoints =
-        input.rewardPoints ||
-        Number(input.payload?.points) ||
-        Number(input.payload?.reward_points) ||
-        Number(input.payload?.amount) ||
-        Math.round(payoutVal * 1000);
+      const estimatedPoints = Math.round(
+        (input.rewardPoints && Number.isFinite(input.rewardPoints) && input.rewardPoints > 0
+          ? input.rewardPoints
+          : 0) ||
+          Number(input.payload?.points) ||
+          Number(input.payload?.reward_points) ||
+          Number(input.payload?.amount) ||
+          payoutVal * 1000
+      );
 
       if (estimatedPoints >= settings.pendingPointsThreshold) {
         targetStatus = "pending";
@@ -722,10 +725,13 @@ async function processPostback(
         }
       }
       const rawPayout = numericPayout(input.payoutUsd);
-      const pointsAwarded =
-        input.rewardPoints && input.rewardPoints > 0
-          ? input.rewardPoints
-          : Math.max(100, Math.round((rawPayout > 0 ? rawPayout : 1.0) * 1000));
+      const hasValidRewardPoints =
+        input.rewardPoints != null &&
+        Number.isFinite(input.rewardPoints) &&
+        input.rewardPoints > 0;
+      const pointsAwarded = hasValidRewardPoints
+        ? Math.max(1, Math.round(input.rewardPoints!))
+        : Math.max(100, Math.round((rawPayout > 0 ? rawPayout : 1.0) * 1000));
 
       const rawOfferName = String(
         input.payload?.offer_name ||
@@ -745,15 +751,18 @@ async function processPostback(
 
       if (existingOffer) {
         offerId = existingOffer.id;
-        await supabaseAdmin
+        const { error: updateOfferError } = await supabaseAdmin
           .from("offers")
           .update({
             reward_points: pointsAwarded,
             reward_usd: rawPayout > 0 ? rawPayout : pointsAwarded / 1000,
           })
           .eq("id", offerId);
+        if (updateOfferError) {
+          console.error("Failed to update dynamic offer for postback:", updateOfferError);
+        }
       } else {
-        const { data: newOffer } = await supabaseAdmin
+        const { data: newOffer, error: insertOfferError } = await supabaseAdmin
           .from("offers")
           .insert({
             title: displayOfferTitle,
@@ -764,6 +773,9 @@ async function processPostback(
           })
           .select("id")
           .single();
+        if (insertOfferError) {
+          console.error("Failed to create dynamic offer for postback:", insertOfferError);
+        }
         offerId = newOffer?.id || null;
       }
 
