@@ -74,6 +74,22 @@ const nextConfig: NextConfig = {
         source: "/postback/adswedmedia",
         destination: "/api/postback",
       },
+      {
+        source: "/api/postback/notik",
+        destination: "/api/postback",
+      },
+      {
+        source: "/postback/notik",
+        destination: "/api/postback",
+      },
+      {
+        source: "/api/postback/notik/",
+        destination: "/api/postback",
+      },
+      {
+        source: "/postback/notik/",
+        destination: "/api/postback",
+      },
     ];
   },
   async headers() {

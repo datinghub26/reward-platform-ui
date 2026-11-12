@@ -11,17 +11,80 @@ type PostbackInput = {
   status: string;
   providerName: string | null;
   providerConversionId: string | null;
+  rewardedTxnId: string | null;
   payoutUsd: unknown;
   rewardPoints: number | null;
   payload: Record<string, unknown>;
 };
 
-function firstValue(
-  value: string | string[] | null | undefined
-) {
-  return Array.isArray(value)
-    ? value[0]
-    : value ?? null;
+function isEmptyOrPlaceholder(
+  value: unknown
+): boolean {
+  if (value == null) return true;
+  const trimmed = String(value).trim();
+  if (!trimmed) return true;
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    return true;
+  }
+  return false;
+}
+
+function pickParam(
+  params: URLSearchParams,
+  keys: string[]
+): string | null {
+  for (const key of keys) {
+    for (const raw of params.getAll(key)) {
+      if (!isEmptyOrPlaceholder(raw)) {
+        return raw.trim();
+      }
+    }
+  }
+  return null;
+}
+
+function pickNumberParam(
+  params: URLSearchParams,
+  keys: string[]
+): number | null {
+  for (const key of keys) {
+    for (const raw of params.getAll(key)) {
+      if (isEmptyOrPlaceholder(raw)) continue;
+      const parsed = Number(raw.trim());
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+  }
+  return null;
+}
+
+function pickBodyString(
+  body: Record<string, unknown>,
+  keys: string[]
+): string | null {
+  for (const key of keys) {
+    const val = body[key];
+    if (!isEmptyOrPlaceholder(val)) {
+      return String(val).trim();
+    }
+  }
+  return null;
+}
+
+function pickBodyNumber(
+  body: Record<string, unknown>,
+  keys: string[]
+): number | null {
+  for (const key of keys) {
+    const val = body[key];
+    if (isEmptyOrPlaceholder(val)) continue;
+    const parsed = Number(String(val).trim());
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return null;
 }
 
 // ---------------------------------------------------------
@@ -39,91 +102,106 @@ async function readInput(
   // -------------------------------------------------------
 
   if (contentType.includes("application/json")) {
-    const body = await request
+    const body = (await request
       .json()
-      .catch(() => ({}));
+      .catch(() => ({}))) as Record<string, unknown>;
+
+    const bodyWall = pickBodyString(body, [
+      "provider_name",
+      "network",
+      "provider",
+      "wall",
+    ]);
 
     return {
-      clickId:
-        body.click_id ??
-        body.clickid ??
-        body.subid ??
-        body.sub_id ??
-        body.sub1 ??
-        body.sub_1 ??
-        body.s1 ??
-        body.s_1 ??
-        body.sid ??
-        body.user_id ??
-        body.userId ??
-        body.uid ??
-        null,
+      clickId: pickBodyString(body, [
+        "click_id",
+        "clickid",
+        "subid",
+        "sub_id",
+        "sub1",
+        "sub_1",
+        "s1",
+        "s_1",
+        "sid",
+        "user_id",
+        "userId",
+        "uid",
+      ]),
 
-      userId:
-        body.user_id ??
-        body.userId ??
-        body.userid ??
-        body.uid ??
-        body.sub_id ??
-        body.subid ??
-        body.subId ??
-        body.sub ??
-        body.user ??
-        null,
+      userId: pickBodyString(body, [
+        "user_id",
+        "userId",
+        "userid",
+        "uid",
+        "sub_id",
+        "subid",
+        "subId",
+        "sub",
+        "user",
+      ]),
 
       status:
-        body.status ??
-        body.conversion_status ??
-        body.state ??
-        "approved",
+        pickBodyString(body, [
+          "status",
+          "conversion_status",
+          "state",
+        ]) ?? "approved",
 
       providerName:
-        body.provider_name ??
-        body.network ??
-        body.provider ??
-        body.wall ??
-        (body.placementId === "6a9e310ea777a90b91c94cec" || body.placement_id === "6a9e310ea777a90b91c94cec"
+        bodyWall ??
+        (body.placementId === "6a9e310ea777a90b91c94cec" ||
+        body.placement_id === "6a9e310ea777a90b91c94cec"
           ? "Gemiads"
-          : null),
+          : body.app_id === "CFGU6xt4mO" ||
+              (!isEmptyOrPlaceholder(body.pub_id) &&
+                !isEmptyOrPlaceholder(body.app_id) &&
+                !isEmptyOrPlaceholder(body.txn_id))
+            ? "Notik"
+            : null),
 
-      providerConversionId:
-        body.provider_conversion_id ??
-        body.transaction_id ??
-        body.transactionId ??
-        body.conversion_id ??
-        body.conversionId ??
-        body.trans_id ??
-        body.transId ??
-        body.transid ??
-        body.tx_id ??
-        body.txid ??
-        body.lead_id ??
-        body.track_id ??
-        body.tracking_id ??
-        body.id ??
-        null,
+      providerConversionId: pickBodyString(body, [
+        "provider_conversion_id",
+        "transaction_id",
+        "transactionId",
+        "conversion_id",
+        "conversionId",
+        "trans_id",
+        "transId",
+        "transid",
+        "txn_id",
+        "txnid",
+        "tx_id",
+        "txid",
+        "lead_id",
+        "track_id",
+        "tracking_id",
+        "id",
+      ]),
+
+      rewardedTxnId: pickBodyString(body, [
+        "rewarded_txn_id",
+        "rewardedTxnId",
+        "original_txn_id",
+        "orig_txn_id",
+      ]),
 
       payoutUsd:
-        body.payout_usd ??
-        body.payout ??
-        body.revenue ??
-        body.payout_amount ??
-        0,
+        pickBodyString(body, [
+          "payout_usd",
+          "payout",
+          "revenue",
+          "payout_amount",
+        ]) ?? 0,
 
-      rewardPoints:
-        body.points != null
-          ? Number(body.points)
-          : body.reward_points != null
-            ? Number(body.reward_points)
-            : body.reward != null
-              ? Number(body.reward)
-              : body.amount != null
-                ? Number(body.amount)
-                : body.credits != null
-                  ? Number(body.credits)
-                  : body.virtual_currency != null
-                    ? Number(body.virtual_currency)
-                    : null,
+      rewardPoints: pickBodyNumber(body, [
+        "points",
+        "reward_points",
+        "reward",
+        "amount",
+        "credits",
+        "virtual_currency",
+      ]),
 
       payload: body,
     };
@@ -139,178 +217,165 @@ async function readInput(
   const pathStr = url.pathname.toLowerCase();
   const reqMatchedPath = (request.headers.get("x-matched-path") || "").toLowerCase();
   const reqInvokePath = (request.headers.get("x-invoke-path") || "").toLowerCase();
+  const wallHint = (
+    pickParam(params, ["provider_name", "network", "provider", "wall"]) || ""
+  ).toLowerCase();
+
   const isGemiads =
     pathStr.includes("gemiad") ||
     pathStr.includes("gemlad") ||
     pathStr.includes("gemiwall") ||
     reqMatchedPath.includes("gemiad") ||
     reqInvokePath.includes("gemiad") ||
-    params.get("wall")?.toLowerCase().includes("gemiad") ||
-    params.get("network")?.toLowerCase().includes("gemiad") ||
-    params.get("provider")?.toLowerCase().includes("gemiad") ||
-    params.get("placementId") === "6a9e310ea777a90b91c94cec" ||
-    params.get("placement_id") === "6a9e310ea777a90b91c94cec";
+    wallHint.includes("gemiad") ||
+    wallHint.includes("gemlad") ||
+    pickParam(params, ["placementId", "placement_id"]) === "6a9e310ea777a90b91c94cec";
 
   const isNexo =
     pathStr.includes("nexowall") ||
     reqMatchedPath.includes("nexowall") ||
     reqInvokePath.includes("nexowall") ||
-    params.get("wall")?.toLowerCase().includes("nexowall") ||
-    params.get("network")?.toLowerCase().includes("nexowall") ||
-    params.get("provider")?.toLowerCase().includes("nexowall");
+    wallHint.includes("nexowall");
 
   const isAdsweb =
     pathStr.includes("adswedmedia") ||
     pathStr.includes("adswebmedia") ||
     reqMatchedPath.includes("adswedmedia") ||
     reqInvokePath.includes("adswedmedia") ||
-    params.get("wall")?.toLowerCase().includes("adswedmedia") ||
-    params.get("network")?.toLowerCase().includes("adswedmedia") ||
-    params.get("provider")?.toLowerCase().includes("adswedmedia");
-
-  const isClickwall =
-    pathStr.includes("clickwall") ||
-    reqMatchedPath.includes("clickwall") ||
-    reqInvokePath.includes("clickwall") ||
-    params.get("wall")?.toLowerCase().includes("clickwall") ||
-    params.get("network")?.toLowerCase().includes("clickwall") ||
-    params.get("provider")?.toLowerCase().includes("clickwall") ||
-    params.has("txid");
+    wallHint.includes("adswedmedia") ||
+    wallHint.includes("adswebmedia");
 
   const isNotik =
     pathStr.includes("notik") ||
     reqMatchedPath.includes("notik") ||
     reqInvokePath.includes("notik") ||
-    params.get("wall")?.toLowerCase().includes("notik") ||
-    params.get("network")?.toLowerCase().includes("notik") ||
-    params.get("provider")?.toLowerCase().includes("notik");
+    wallHint.includes("notik") ||
+    pickParam(params, ["app_id"]) === "CFGU6xt4mO" ||
+    (pickParam(params, ["pub_id"]) !== null &&
+      pickParam(params, ["app_id"]) !== null &&
+      pickParam(params, ["txn_id"]) !== null);
+
+  const isExplicitClickwall =
+    pathStr.includes("clickwall") ||
+    reqMatchedPath.includes("clickwall") ||
+    reqInvokePath.includes("clickwall") ||
+    wallHint.includes("clickwall");
+
+  const isUpwall =
+    pathStr.includes("upwall") ||
+    reqMatchedPath.includes("upwall") ||
+    reqInvokePath.includes("upwall") ||
+    wallHint.includes("upwall");
+
+  const isTxidClickwallFallback =
+    !isGemiads &&
+    !isNexo &&
+    !isAdsweb &&
+    !isNotik &&
+    !isUpwall &&
+    pickParam(params, ["txid"]) !== null;
+
+  const payloadObj: Record<string, string> = {};
+  for (const [key, val] of params.entries()) {
+    if (!isEmptyOrPlaceholder(val) || !(key in payloadObj)) {
+      payloadObj[key] = val;
+    }
+  }
 
   return {
-    clickId: firstValue(
-      params.getAll("click_id").length
-        ? params.getAll("click_id")
-        : params.getAll("clickid").length
-          ? params.getAll("clickid")
-          : params.getAll("subid").length
-            ? params.getAll("subid")
-            : params.getAll("sub_id").length
-              ? params.getAll("sub_id")
-              : params.getAll("subId").length
-                ? params.getAll("subId")
-                : params.getAll("sub1").length
-                  ? params.getAll("sub1")
-                  : params.getAll("sub_1").length
-                    ? params.getAll("sub_1")
-                    : params.getAll("s1").length
-                      ? params.getAll("s1")
-                      : params.getAll("s_1").length
-                        ? params.getAll("s_1")
-                        : params.getAll("sid").length
-                          ? params.getAll("sid")
-                          : params.getAll("user_id").length
-                            ? params.getAll("user_id")
-                            : params.getAll("userId").length
-                              ? params.getAll("userId")
-                              : params.getAll("userid").length
-                                ? params.getAll("userid")
-                                : params.getAll("uid").length
-                                  ? params.getAll("uid")
-                                  : params.getAll("user").length
-                                    ? params.getAll("user")
-                                    : params.getAll("txid").length
-                                      ? params.getAll("txid")
-                                      : params.getAll("tx_id").length
-                                        ? params.getAll("tx_id")
-                                        : params.getAll("trans_id")
-    ),
+    clickId: pickParam(params, [
+      "click_id",
+      "clickid",
+      "subid",
+      "sub_id",
+      "subId",
+      "sub1",
+      "sub_1",
+      "s1",
+      "s_1",
+      "sid",
+      "user_id",
+      "userId",
+      "userid",
+      "uid",
+      "user",
+      "txid",
+      "tx_id",
+      "trans_id",
+      "txn_id",
+    ]),
 
-    userId: firstValue(
-      params.getAll("user_id").length
-        ? params.getAll("user_id")
-        : params.getAll("userId").length
-          ? params.getAll("userId")
-          : params.getAll("userid").length
-            ? params.getAll("userid")
-            : params.getAll("uid").length
-              ? params.getAll("uid")
-              : params.getAll("sub_id").length
-                ? params.getAll("sub_id")
-                : params.getAll("subid").length
-                  ? params.getAll("subid")
-                  : params.getAll("subId").length
-                    ? params.getAll("subId")
-                    : params.getAll("sub").length
-                      ? params.getAll("sub")
-                      : params.getAll("user")
-    ),
+    userId: pickParam(params, [
+      "user_id",
+      "userId",
+      "userid",
+      "uid",
+      "sub_id",
+      "subid",
+      "subId",
+      "sub",
+      "user",
+    ]),
 
     status:
-      params.get("status") ??
-      params.get("conversion_status") ??
-      params.get("state") ??
-      "approved",
+      pickParam(params, ["status", "conversion_status", "state"]) ?? "approved",
 
     providerName:
-      params.get("provider_name") ??
-      params.get("network") ??
-      params.get("provider") ??
-      params.get("wall") ??
+      pickParam(params, ["provider_name", "network", "provider", "wall"]) ??
       (isGemiads
         ? "Gemiads"
         : isNexo
           ? "Nexowall"
           : isAdsweb
             ? "Adswedmedia"
-            : isClickwall
-              ? "Clickwall"
-              : isNotik
-                ? "Notik"
-                : null),
+            : isNotik
+              ? "Notik"
+              : isExplicitClickwall || isTxidClickwallFallback
+                ? "Clickwall"
+                : isUpwall
+                  ? "Upwall"
+                  : null),
 
-    providerConversionId:
-      params.get("provider_conversion_id") ??
-      params.get("transaction_id") ??
-      params.get("transactionId") ??
-      params.get("conversion_id") ??
-      params.get("conversionId") ??
-      params.get("trans_id") ??
-      params.get("transId") ??
-      params.get("transid") ??
-      params.get("txn_id") ??
-      params.get("txnid") ??
-      params.get("tx_id") ??
-      params.get("txid") ??
-      params.get("lead_id") ??
-      params.get("track_id") ??
-      params.get("tracking_id") ??
-      params.get("id") ??
-      null,
+    providerConversionId: pickParam(params, [
+      "provider_conversion_id",
+      "transaction_id",
+      "transactionId",
+      "conversion_id",
+      "conversionId",
+      "trans_id",
+      "transId",
+      "transid",
+      "txn_id",
+      "txnid",
+      "tx_id",
+      "txid",
+      "lead_id",
+      "track_id",
+      "tracking_id",
+      "id",
+    ]),
+
+    rewardedTxnId: pickParam(params, [
+      "rewarded_txn_id",
+      "rewardedTxnId",
+      "original_txn_id",
+      "orig_txn_id",
+    ]),
 
     payoutUsd:
-      params.get("payout_usd") ??
-      params.get("payout") ??
-      params.get("revenue") ??
-      params.get("payout_amount") ??
+      pickParam(params, ["payout_usd", "payout", "revenue", "payout_amount"]) ??
       "0",
 
-    rewardPoints:
-      params.get("points") != null
-        ? Number(params.get("points"))
-        : params.get("reward_points") != null
-          ? Number(params.get("reward_points"))
-          : params.get("reward") != null
-            ? Number(params.get("reward"))
-            : params.get("amount") != null
-              ? Number(params.get("amount"))
-              : params.get("credits") != null
-                ? Number(params.get("credits"))
-                : params.get("virtual_currency") != null
-                  ? Number(params.get("virtual_currency"))
-                  : null,
+    rewardPoints: pickNumberParam(params, [
+      "points",
+      "reward_points",
+      "reward",
+      "amount",
+      "credits",
+      "virtual_currency",
+    ]),
 
-    payload: Object.fromEntries(
-      params.entries()
-    ),
+    payload: payloadObj,
   };
 }
 
@@ -341,17 +406,24 @@ async function validSecret(request: Request): Promise<boolean> {
 
   const providedSecret = headerSecret || querySecret;
 
-  // Dedicated offerwall webhook paths (e.g. Clickwall / Nexowall / Gemiads / Adswebmedia / Upwall)
+  // Dedicated offerwall webhook paths (e.g. Clickwall / Nexowall / Gemiads / Adswebmedia / Upwall / Notik)
   const pathname = url.pathname.toLowerCase();
   const matchedPath = (request.headers.get("x-matched-path") || "").toLowerCase();
   const invokePath = (request.headers.get("x-invoke-path") || "").toLowerCase();
   const queryWall = (
-    url.searchParams.get("wall") ||
-    url.searchParams.get("network") ||
-    url.searchParams.get("provider") ||
-    ""
+    pickParam(url.searchParams, ["wall", "network", "provider"]) || ""
   ).toLowerCase();
-  const placementId = url.searchParams.get("placementId") || url.searchParams.get("placement_id") || "";
+  const placementId = pickParam(url.searchParams, ["placementId", "placement_id"]) || "";
+
+  const isNotikRequest =
+    pathname.includes("notik") ||
+    matchedPath.includes("notik") ||
+    invokePath.includes("notik") ||
+    queryWall.includes("notik") ||
+    pickParam(url.searchParams, ["app_id"]) === "CFGU6xt4mO" ||
+    (pickParam(url.searchParams, ["pub_id"]) !== null &&
+      pickParam(url.searchParams, ["app_id"]) !== null &&
+      pickParam(url.searchParams, ["txn_id"]) !== null);
 
   const isDedicatedOfferwallRoute =
     pathname.includes("clickwall") ||
@@ -380,35 +452,36 @@ async function validSecret(request: Request): Promise<boolean> {
     matchedPath.includes("upwall") ||
     invokePath.includes("upwall") ||
     queryWall.includes("upwall") ||
-    pathname.includes("notik") ||
-    matchedPath.includes("notik") ||
-    invokePath.includes("notik") ||
-    queryWall.includes("notik");
+    isNotikRequest;
 
   const hasConversionIdentifiers =
     Boolean(
-      url.searchParams.get("sub_id") ||
-      url.searchParams.get("user_id") ||
-      url.searchParams.get("userId") ||
-      url.searchParams.get("userid") ||
-      url.searchParams.get("subId") ||
-      url.searchParams.get("sub") ||
-      url.searchParams.get("uid") ||
-      url.searchParams.get("click_id") ||
-      url.searchParams.get("clickid")
+      pickParam(url.searchParams, [
+        "sub_id",
+        "user_id",
+        "userId",
+        "userid",
+        "subId",
+        "sub",
+        "uid",
+        "click_id",
+        "clickid",
+      ])
     ) &&
     Boolean(
-      url.searchParams.get("trans_id") ||
-      url.searchParams.get("transId") ||
-      url.searchParams.get("txn_id") ||
-      url.searchParams.get("txnid") ||
-      url.searchParams.get("txid") ||
-      url.searchParams.get("tx_id") ||
-      url.searchParams.get("transaction_id") ||
-      url.searchParams.get("transactionId") ||
-      url.searchParams.get("conversion_id") ||
-      url.searchParams.get("conversionId") ||
-      url.searchParams.get("lead_id")
+      pickParam(url.searchParams, [
+        "trans_id",
+        "transId",
+        "txn_id",
+        "txnid",
+        "txid",
+        "tx_id",
+        "transaction_id",
+        "transactionId",
+        "conversion_id",
+        "conversionId",
+        "lead_id",
+      ])
     );
 
   const clientIp = request.headers.get("x-forwarded-for") || request.headers.get("cf-connecting-ip") || "";
@@ -526,6 +599,12 @@ async function processPostback(
       pathStr.includes("gemlad") ||
       reqMatchedPath.includes("gemiad") ||
       reqInvokePath.includes("gemiad");
+    const isNotik =
+      input.providerName?.toLowerCase().includes("notik") ||
+      pathStr.includes("notik") ||
+      reqMatchedPath.includes("notik") ||
+      reqInvokePath.includes("notik");
+    const rawSignedPayout = Number(input.payoutUsd);
 
     // -----------------------------------------------------
     // 3. Validate Click ID
@@ -538,6 +617,20 @@ async function processPostback(
     ) {
       if (isGemiAd) {
         input.clickId = input.providerConversionId || `gemiad-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      } else if (isNotik) {
+        const hasNumericRewardOrPayout =
+          (Number.isFinite(rawSignedPayout) && rawSignedPayout !== 0) ||
+          (input.rewardPoints != null && Number.isFinite(input.rewardPoints) && input.rewardPoints !== 0);
+        if (!input.providerConversionId && !input.userId && !input.rewardedTxnId && !hasNumericRewardOrPayout) {
+          return new NextResponse("1", {
+            status: 200,
+            headers: { "content-type": "text/plain" },
+          });
+        }
+        input.clickId =
+          input.providerConversionId ||
+          input.rewardedTxnId ||
+          `notik-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
       } else {
         return NextResponse.json(
           {
@@ -592,6 +685,15 @@ async function processPostback(
       targetStatus = "approved";
     }
 
+    const hasNegativePayout = Number.isFinite(rawSignedPayout) && rawSignedPayout < 0;
+    const hasNegativeReward =
+      input.rewardPoints != null &&
+      Number.isFinite(input.rewardPoints) &&
+      input.rewardPoints < 0;
+    if (hasNegativePayout || hasNegativeReward || Boolean(input.rewardedTxnId)) {
+      targetStatus = "reversed";
+    }
+
     // Check if points exceed pending threshold
     if (settings.enablePendingLeads && targetStatus === "approved") {
       const payoutVal = numericPayout(input.payoutUsd);
@@ -624,33 +726,111 @@ async function processPostback(
       }
     }
 
-    let {
-      data,
-      error,
-    } = await supabaseAdmin.rpc(
-      "process_offer_postback",
-      {
-        p_click_id:
-          input.clickId.trim(),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let data: any = null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let error: any = null;
 
-        p_status:
-          targetStatus,
+    if (targetStatus === "reversed" && input.rewardedTxnId) {
+      const { data: origConv } = await supabaseAdmin
+        .from("conversions")
+        .select("id, click_id, user_id, offer_id, provider_name, status, reward_points")
+        .eq("provider_conversion_id", input.rewardedTxnId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-        p_provider_name:
-          input.providerName,
+      if (origConv) {
+        if (origConv.status === "reversed") {
+          return new NextResponse("1", {
+            status: 200,
+            headers: { "content-type": "text/plain" },
+          });
+        }
 
-        p_provider_conversion_id:
-          input.providerConversionId,
+        const deductPoints = Math.max(0, Math.round(Number(origConv.reward_points ?? 0)));
+        if (deductPoints > 0 && origConv.user_id) {
+          const { data: profile } = await supabaseAdmin
+            .from("user_profiles")
+            .select("available_points")
+            .eq("id", origConv.user_id)
+            .maybeSingle();
 
-        p_payout_usd:
-          numericPayout(
-            input.payoutUsd
-          ),
+          const currentBal = Number(profile?.available_points ?? 0);
+          const newBal = Math.max(0, currentBal - deductPoints);
 
-        p_payload:
-          input.payload ?? {},
+          await supabaseAdmin
+            .from("user_profiles")
+            .update({
+              available_points: newBal,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", origConv.user_id);
+
+          await supabaseAdmin.from("reward_ledger").insert({
+            user_id: origConv.user_id,
+            conversion_id: origConv.id,
+            entry_type: "reversal",
+            points: -deductPoints,
+            balance_after: newBal,
+            description: `Partner reversal (${input.providerName || origConv.provider_name || "Notik"}): ${input.rewardedTxnId}`,
+          });
+        }
+
+        await supabaseAdmin
+          .from("conversions")
+          .update({
+            status: "reversed",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", origConv.id);
+
+        if (origConv.click_id) {
+          await supabaseAdmin
+            .from("offer_clicks")
+            .update({ status: "expired" })
+            .eq("click_id", origConv.click_id);
+        }
+
+        data = {
+          ok: true,
+          duplicate: false,
+          conversion_id: origConv.id,
+          status: "reversed",
+          reward_points: 0,
+          user_id: origConv.user_id,
+        };
       }
-    );
+    }
+
+    if (!data) {
+      const rpcRes = await supabaseAdmin.rpc(
+        "process_offer_postback",
+        {
+          p_click_id:
+            input.clickId.trim(),
+
+          p_status:
+            targetStatus,
+
+          p_provider_name:
+            input.providerName,
+
+          p_provider_conversion_id:
+            input.providerConversionId,
+
+          p_payout_usd:
+            numericPayout(
+              input.payoutUsd
+            ),
+
+          p_payload:
+            input.payload ?? {},
+        }
+      );
+      data = rpcRes.data;
+      error = rpcRes.error;
+    }
 
     // If Unknown click_id, check if input.clickId or userId is a registered user profile
     // (This enables seamless crediting for external partner offerwall callbacks like Klink, Adswedmedia, Gemlads, Notik)
@@ -706,6 +886,7 @@ async function processPostback(
       let providerName = input.providerName;
       if (!providerName) {
         const pathLower = url.pathname.toLowerCase();
+        const wallParamLower = (url.searchParams.get("wall") || "").toLowerCase();
         if (pathLower.includes("gemiad") || pathLower.includes("gemlad") || pathLower.includes("gemiwall")) {
           providerName = "Gemiads";
         } else if (pathLower.includes("nexowall")) {
@@ -714,31 +895,50 @@ async function processPostback(
           providerName = "Adswedmedia";
         } else if (pathLower.includes("upwall")) {
           providerName = "Upwall";
-        } else if (pathLower.includes("clickwall") || input.payload?.txid) {
-          providerName = "Clickwall";
-        } else if (pathLower.includes("notik") || url.searchParams.get("wall")?.toLowerCase().includes("notik")) {
+        } else if (
+          pathLower.includes("notik") ||
+          wallParamLower.includes("notik") ||
+          url.searchParams.get("app_id") === "CFGU6xt4mO"
+        ) {
           providerName = "Notik";
-        } else if (input.payload?.reward || input.payload?.trans_id || input.payload?.transId) {
+        } else if (pathLower.includes("clickwall") || !isEmptyOrPlaceholder(input.payload?.txid)) {
+          providerName = "Clickwall";
+        } else if (
+          !isEmptyOrPlaceholder(input.payload?.reward) ||
+          !isEmptyOrPlaceholder(input.payload?.trans_id) ||
+          !isEmptyOrPlaceholder(input.payload?.transId)
+        ) {
           providerName = "Gemiads";
         } else {
           providerName = "Clickwall";
         }
       }
       const rawPayout = numericPayout(input.payoutUsd);
-      const hasValidRewardPoints =
-        input.rewardPoints != null &&
-        Number.isFinite(input.rewardPoints) &&
-        input.rewardPoints > 0;
-      const pointsAwarded = hasValidRewardPoints
-        ? Math.max(1, Math.round(input.rewardPoints!))
-        : Math.max(100, Math.round((rawPayout > 0 ? rawPayout : 1.0) * 1000));
+      const absPayout = Number.isFinite(rawSignedPayout) ? Math.abs(rawSignedPayout) : rawPayout;
+      const absRewardPoints =
+        input.rewardPoints != null && Number.isFinite(input.rewardPoints)
+          ? Math.abs(input.rewardPoints)
+          : 0;
+      const pointsAwarded =
+        absRewardPoints > 0
+          ? Math.max(1, Math.round(absRewardPoints))
+          : Math.max(100, Math.round((absPayout > 0 ? absPayout : 1.0) * 1000));
+      const offerUsdValue = absPayout > 0 ? absPayout : pointsAwarded / 1000;
 
-      const rawOfferName = String(
-        input.payload?.offer_name ||
-        input.payload?.title ||
-        input.payload?.campaign_name ||
-        (input.payload?.offer_id ? `Offer #${input.payload.offer_id}` : "")
-      ).trim();
+      const candidateOfferName =
+        [
+          !isEmptyOrPlaceholder(input.payload?.offer_name) ? String(input.payload?.offer_name).trim() : "",
+          !isEmptyOrPlaceholder(input.payload?.offerName) ? String(input.payload?.offerName).trim() : "",
+          !isEmptyOrPlaceholder(input.payload?.title) ? String(input.payload?.title).trim() : "",
+          !isEmptyOrPlaceholder(input.payload?.campaign_name) ? String(input.payload?.campaign_name).trim() : "",
+        ].find(Boolean) || "";
+      const candidateOfferId =
+        [
+          !isEmptyOrPlaceholder(input.payload?.offer_id) ? String(input.payload?.offer_id).trim() : "",
+          !isEmptyOrPlaceholder(input.payload?.offerId) ? String(input.payload?.offerId).trim() : "",
+        ].find(Boolean) || "";
+      const rawOfferName =
+        candidateOfferName || (candidateOfferId ? `Offer #${candidateOfferId}` : "");
       const displayOfferTitle = rawOfferName ? `${providerName}: ${rawOfferName}` : `${providerName} Activities`;
 
       let offerId: string | null = null;
@@ -755,7 +955,7 @@ async function processPostback(
           .from("offers")
           .update({
             reward_points: pointsAwarded,
-            reward_usd: rawPayout > 0 ? rawPayout : pointsAwarded / 1000,
+            reward_usd: offerUsdValue,
           })
           .eq("id", offerId);
         if (updateOfferError) {
@@ -769,7 +969,7 @@ async function processPostback(
             provider_name: providerName,
             reward_points: pointsAwarded,
             status: "archived",
-            reward_usd: rawPayout > 0 ? rawPayout : pointsAwarded / 1000,
+            reward_usd: offerUsdValue,
           })
           .select("id")
           .single();
@@ -797,7 +997,12 @@ async function processPostback(
           p_status: targetStatus,
           p_provider_name: providerName,
           p_provider_conversion_id: input.providerConversionId || autoConvId,
-          p_payout_usd: rawPayout > 0 ? rawPayout : 1.0,
+          p_payout_usd:
+            targetStatus === "reversed"
+              ? 0
+              : rawPayout > 0
+                ? rawPayout
+                : offerUsdValue,
           p_payload: input.payload ?? {},
         });
         data = retryRes.data;
@@ -957,7 +1162,9 @@ async function processPostback(
       reqMatchedPath.includes("clickwall") ||
       reqInvokePath.includes("clickwall") ||
       reqMatchedPath.includes("gemiad") ||
-      reqInvokePath.includes("gemiad");
+      reqInvokePath.includes("gemiad") ||
+      reqMatchedPath.includes("notik") ||
+      reqInvokePath.includes("notik");
 
     if (isGemiAd) {
       return new NextResponse("Approved", {
