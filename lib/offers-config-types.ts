@@ -49,8 +49,8 @@ export const DEFAULT_OFFERS_CONFIG: OffersPlatformConfig = {
     },
     offery: {
       name: "Offery",
-      apiKey: "dkeebkcr1z3m4ud0or0d4fw",
-      secret: "",
+      apiKey: "f911aojkhh8g9sz504pxjvb89ijpnn",
+      secret: "e449597ea09085170dbc6269218e42b4",
       active: true,
     },
     vortexwall: {

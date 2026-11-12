@@ -66,15 +66,15 @@
   },
   {
     "id": "offery",
-    "url": "https://offery.io/offerwall/dkeebkcr1z3m4ud0or0d4fw?sub_id={user_id}",
+    "url": "https://offery.io/offerwall/f911aojkhh8g9sz504pxjvb89ijpnn/{user_id}",
     "logo": "🎁",
     "name": "Offery",
-    "rate": "0/5",
+    "rate": "5",
     "type": "offer",
     "badge": "",
     "color": "#eab308",
-    "active": false,
-    "show_rate": false,
+    "active": true,
+    "show_rate": true,
     "description": "Exclusive sweepstakes, surveys, and casual gaming offers."
   },
   {

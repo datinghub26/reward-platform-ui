@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createHash, timingSafeEqual } from "crypto";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getPlatformSettings } from "@/lib/settings";
 import { isOfferHeldByRule } from "@/lib/pending-rules";
@@ -468,6 +469,54 @@ async function validSecret(request: Request): Promise<boolean> {
 
   const providedSecret = headerSecret || querySecret;
 
+  async function matchesKnownSecret(secret: string | null): Promise<boolean> {
+    if (!secret) return false;
+
+    if (
+      secret === globalExpected ||
+      secret === "RewardNova_Postback_2026_A9x7Kp4Lm2Q" ||
+      secret === "rewardnova-secure-postback-secret" ||
+      secret === "6a9e310ea777a90b91c94cec" ||
+      secret === "10ec287148695fe8f53657961b817e8832d2736860fd2270c08d4db41d94d94d" ||
+      secret === "4bfd5a91-c6c9-450a-96a5-1371edfe114d" ||
+      secret === "a06e1b32578ca5131694c244f4bdeba8"
+    ) {
+      return true;
+    }
+
+    try {
+      const { data: matchedProvider } = await supabaseAdmin
+        .from("provider_postback_auth")
+        .select("id")
+        .eq("api_secret", secret)
+        .eq("enabled", true)
+        .limit(1)
+        .maybeSingle();
+
+      if (matchedProvider) {
+        return true;
+      }
+    } catch (err) {
+      console.error("Error checking provider_postback_auth in postback:", err);
+    }
+
+    try {
+      const { getOffersConfigAsync } = await import("@/lib/offers-config");
+      const offersCfg = await getOffersConfigAsync();
+      const configuredSecrets = Object.values(offersCfg.providerConfigs || {})
+        .map((p) => (p.secret || "").trim())
+        .filter((s) => s.length > 0);
+
+      if (configuredSecrets.some((s) => s === secret.trim())) {
+        return true;
+      }
+    } catch (err) {
+      console.error("Error checking offers_config secrets in postback:", err);
+    }
+
+    return false;
+  }
+
   // Dedicated offerwall webhook paths (e.g. Clickwall / Nexowall / Gemiads / Adswebmedia / Upwall / Notik / Offery)
   const pathname = url.pathname.toLowerCase();
   const matchedPath = (request.headers.get("x-matched-path") || "").toLowerCase();
@@ -497,6 +546,89 @@ async function validSecret(request: Request): Promise<boolean> {
       (pickParam(combinedParams, ["reward_name", "reward_value", "offer_type"]) !== null ||
         pickParam(combinedParams, ["subId"]) !== null));
 
+  if (isOfferyRequest) {
+    if (await matchesKnownSecret(providedSecret)) {
+      return true;
+    }
+
+    const contentType = (request.headers.get("content-type") ?? "").toLowerCase();
+    const jsonBody = contentType.includes("application/json")
+      ? ((await request.clone().json().catch(() => null)) as Record<string, unknown> | null)
+      : null;
+
+    const rawSubId = jsonBody
+      ? (jsonBody.subId != null ? String(jsonBody.subId) : "")
+      : (combinedParams.get("subId") ?? "");
+    const rawTransId = jsonBody
+      ? (jsonBody.transId != null ? String(jsonBody.transId) : "")
+      : (combinedParams.get("transId") ?? "");
+    const rawReward = jsonBody
+      ? (jsonBody.reward != null ? String(jsonBody.reward) : "")
+      : (combinedParams.get("reward") ?? "");
+    const rawPayout = jsonBody
+      ? (jsonBody.payout != null ? String(jsonBody.payout) : "")
+      : (combinedParams.get("payout") ?? "");
+    const rawSignature = (
+      jsonBody
+        ? (jsonBody.signature != null ? String(jsonBody.signature) : "")
+        : (combinedParams.get("signature") ?? "")
+    )
+      .trim()
+      .toLowerCase();
+
+    const hasOfferyPayload =
+      !isEmptyOrPlaceholder(rawSubId) ||
+      !isEmptyOrPlaceholder(rawTransId) ||
+      !isEmptyOrPlaceholder(rawReward) ||
+      !isEmptyOrPlaceholder(rawPayout) ||
+      !isEmptyOrPlaceholder(rawSignature) ||
+      Boolean(
+        pickParam(combinedParams, [
+          "user_id",
+          "sub_id",
+          "trans_id",
+          "txn_id",
+          "txid",
+          "amount",
+          "points",
+        ])
+      );
+
+    if (!hasOfferyPayload) {
+      return true;
+    }
+
+    let offerySecret = "e449597ea09085170dbc6269218e42b4";
+    try {
+      const { getOffersConfigAsync } = await import("@/lib/offers-config");
+      const offersCfg = await getOffersConfigAsync();
+      const configuredOfferySecret = offersCfg.providerConfigs?.offery?.secret;
+      if (typeof configuredOfferySecret === "string") {
+        offerySecret = configuredOfferySecret.trim();
+      }
+    } catch (err) {
+      console.error("Error reading Offery secret from offers_config:", err);
+    }
+
+    if (!offerySecret) {
+      return true;
+    }
+
+    const expectedSig = createHash("md5")
+      .update(`${rawSubId}${rawTransId}${rawReward}${offerySecret}`)
+      .digest("hex")
+      .toLowerCase();
+
+    if (!rawSignature || rawSignature.length !== expectedSig.length) {
+      return false;
+    }
+
+    return timingSafeEqual(
+      Buffer.from(rawSignature, "utf8"),
+      Buffer.from(expectedSig, "utf8")
+    );
+  }
+
   const isDedicatedOfferwallRoute =
     pathname.includes("clickwall") ||
     matchedPath.includes("clickwall") ||
@@ -524,8 +656,7 @@ async function validSecret(request: Request): Promise<boolean> {
     matchedPath.includes("upwall") ||
     invokePath.includes("upwall") ||
     queryWall.includes("upwall") ||
-    isNotikRequest ||
-    isOfferyRequest;
+    isNotikRequest;
 
   const hasConversionIdentifiers =
     Boolean(
@@ -564,56 +695,7 @@ async function validSecret(request: Request): Promise<boolean> {
     return true;
   }
 
-  if (!providedSecret) {
-    return false;
-  }
-
-  // 1. Primary check against master global secret or known provider keys
-  if (
-    providedSecret === globalExpected ||
-    providedSecret === "RewardNova_Postback_2026_A9x7Kp4Lm2Q" ||
-    providedSecret === "rewardnova-secure-postback-secret" ||
-    providedSecret === "6a9e310ea777a90b91c94cec" ||
-    providedSecret === "10ec287148695fe8f53657961b817e8832d2736860fd2270c08d4db41d94d94d" ||
-    providedSecret === "4bfd5a91-c6c9-450a-96a5-1371edfe114d" ||
-    providedSecret === "a06e1b32578ca5131694c244f4bdeba8"
-  ) {
-    return true;
-  }
-
-  // 2. Secondary check against provider_postback_auth table in Supabase
-  try {
-    const { data: matchedProvider } = await supabaseAdmin
-      .from("provider_postback_auth")
-      .select("id")
-      .eq("api_secret", providedSecret)
-      .eq("enabled", true)
-      .limit(1)
-      .maybeSingle();
-
-    if (matchedProvider) {
-      return true;
-    }
-  } catch (err) {
-    console.error("Error checking provider_postback_auth in postback:", err);
-  }
-
-  // 3. Tertiary check against offers_config provider secrets configured in Admin Panel
-  try {
-    const { getOffersConfigAsync } = await import("@/lib/offers-config");
-    const offersCfg = await getOffersConfigAsync();
-    const configuredSecrets = Object.values(offersCfg.providerConfigs || {})
-      .map((p) => (p.secret || "").trim())
-      .filter((s) => s.length > 0);
-
-    if (configuredSecrets.some((s) => s === providedSecret.trim())) {
-      return true;
-    }
-  } catch (err) {
-    console.error("Error checking offers_config secrets in postback:", err);
-  }
-
-  return false;
+  return matchesKnownSecret(providedSecret);
 }
 
 // ---------------------------------------------------------
