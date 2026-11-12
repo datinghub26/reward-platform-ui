@@ -1,7 +1,16 @@
-import { type NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/proxy";
 
 export async function proxy(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+  if (
+    pathname === "/postback" ||
+    pathname.startsWith("/postback/") ||
+    pathname === "/api/postback" ||
+    pathname.startsWith("/api/postback/")
+  ) {
+    return NextResponse.next();
+  }
   return await updateSession(request);
 }
 

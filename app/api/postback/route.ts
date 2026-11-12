@@ -1,10 +1,18 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { createHash, timingSafeEqual } from "crypto";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getPlatformSettings } from "@/lib/settings";
 import { isOfferHeldByRule } from "@/lib/pending-rules";
 
 export const dynamic = "force-dynamic";
+
+function runPostbackAfter(task: () => Promise<void>) {
+  try {
+    after(task);
+  } catch {
+    task().catch((err) => console.error("Postback background task failed:", err));
+  }
+}
 
 type PostbackInput = {
   clickId: string | null;
@@ -805,28 +813,7 @@ async function processPostback(
     }
 
     // -----------------------------------------------------
-    // 3.5 Validate Provider Active Status
-    // -----------------------------------------------------
-
-    if (input.providerName) {
-      const { getStoredProvidersAsync, matchesProvider } = await import("@/lib/providers-store");
-      const providers = await getStoredProvidersAsync();
-      const matched = providers.find((p) => matchesProvider(p, input.providerName!));
-      if (matched && matched.active === false) {
-        return NextResponse.json(
-          {
-            ok: false,
-            error: `Offer wall '${matched.name}' is currently disabled by administrator`,
-          },
-          {
-            status: 403,
-          }
-        );
-      }
-    }
-
-    // -----------------------------------------------------
-    // 4. Process conversion in Supabase
+    // 3.5 Normalize status, provider, and offer metadata
     // -----------------------------------------------------
 
     const settings = getPlatformSettings();
@@ -886,85 +873,269 @@ async function processPostback(
       }
     }
 
+    let resolvedProviderName = input.providerName;
+    if (!resolvedProviderName) {
+      const wallParamLower = (url.searchParams.get("wall") || "").toLowerCase();
+      if (pathStr.includes("offery") || wallParamLower.includes("offery")) {
+        resolvedProviderName = "Offery";
+      } else if (pathStr.includes("gemiad") || pathStr.includes("gemlad") || pathStr.includes("gemiwall")) {
+        resolvedProviderName = "Gemiads";
+      } else if (pathStr.includes("nexowall")) {
+        resolvedProviderName = "Nexowall";
+      } else if (pathStr.includes("adswedmedia") || pathStr.includes("adswebmedia")) {
+        resolvedProviderName = "Adswedmedia";
+      } else if (pathStr.includes("upwall")) {
+        resolvedProviderName = "Upwall";
+      } else if (
+        pathStr.includes("notik") ||
+        wallParamLower.includes("notik") ||
+        url.searchParams.get("app_id") === "CFGU6xt4mO"
+      ) {
+        resolvedProviderName = "Notik";
+      } else if (pathStr.includes("clickwall") || !isEmptyOrPlaceholder(input.payload?.txid)) {
+        resolvedProviderName = "Clickwall";
+      } else if (
+        !isEmptyOrPlaceholder(input.payload?.reward) ||
+        !isEmptyOrPlaceholder(input.payload?.trans_id) ||
+        !isEmptyOrPlaceholder(input.payload?.transId)
+      ) {
+        resolvedProviderName = "Gemiads";
+      } else {
+        resolvedProviderName = "Clickwall";
+      }
+    }
+
+    const rawPayout = numericPayout(input.payoutUsd);
+    const absPayout = Number.isFinite(rawSignedPayout) ? Math.abs(rawSignedPayout) : rawPayout;
+    const absRewardPoints =
+      input.rewardPoints != null && Number.isFinite(input.rewardPoints)
+        ? Math.abs(input.rewardPoints)
+        : 0;
+    const pointsAwarded =
+      absRewardPoints > 0
+        ? Math.max(1, Math.round(absRewardPoints))
+        : Math.max(100, Math.round((absPayout > 0 ? absPayout : 1.0) * 1000));
+    const offerUsdValue = absPayout > 0 ? absPayout : pointsAwarded / 1000;
+
+    const candidateOfferName =
+      [
+        !isEmptyOrPlaceholder(input.payload?.offer_name) ? String(input.payload?.offer_name).trim() : "",
+        !isEmptyOrPlaceholder(input.payload?.offerName) ? String(input.payload?.offerName).trim() : "",
+        !isEmptyOrPlaceholder(input.payload?.title) ? String(input.payload?.title).trim() : "",
+        !isEmptyOrPlaceholder(input.payload?.campaign_name) ? String(input.payload?.campaign_name).trim() : "",
+      ].find(Boolean) || "";
+    const candidateOfferId =
+      [
+        !isEmptyOrPlaceholder(input.payload?.offer_id) ? String(input.payload?.offer_id).trim() : "",
+        !isEmptyOrPlaceholder(input.payload?.offerId) ? String(input.payload?.offerId).trim() : "",
+      ].find(Boolean) || "";
+    const rawOfferName =
+      candidateOfferName || (candidateOfferId ? `Offer #${candidateOfferId}` : "");
+    const displayOfferTitle = rawOfferName
+      ? `${resolvedProviderName}: ${rawOfferName}`
+      : `${resolvedProviderName} Activities`;
+
+    const candidateUserId = (input.userId || input.clickId).trim().replace(/^[#\s]+/, "");
+    const reversalLookupTxnId = input.rewardedTxnId || input.providerConversionId;
+
+    async function resolveFallbackUserProfile(): Promise<{ id: string }> {
+      let userProfile: { id: string } | null = null;
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+      if (uuidRegex.test(candidateUserId)) {
+        const { data: prof } = await supabaseAdmin
+          .from("user_profiles")
+          .select("id")
+          .eq("id", candidateUserId)
+          .maybeSingle();
+        userProfile = prof;
+      } else if (candidateUserId && candidateUserId !== "test" && !candidateUserId.includes("{")) {
+        const { findUserIdByNumericIdAsync } = await import("@/lib/user-ids");
+        const resolvedByNum = await findUserIdByNumericIdAsync(candidateUserId);
+        if (resolvedByNum) {
+          userProfile = { id: resolvedByNum };
+        } else if (candidateUserId === "6" || candidateUserId.toLowerCase() === "mamnunahmedcpa") {
+          userProfile = { id: "5ffefb55-2973-47cd-8ccd-7c78e92cd043" };
+        } else if (candidateUserId.includes("@")) {
+          const { data: authList } = await supabaseAdmin.auth.admin.listUsers();
+          const matched = (authList?.users ?? []).find(
+            (u) => u.email?.toLowerCase() === candidateUserId.toLowerCase()
+          );
+          if (matched) {
+            userProfile = { id: matched.id };
+          }
+        } else {
+          const { data: allProfiles } = await supabaseAdmin
+            .from("user_profiles")
+            .select("id, display_name")
+            .limit(100);
+          const matched = (allProfiles ?? []).find(
+            (p) =>
+              p.id.toLowerCase().startsWith(candidateUserId.toLowerCase()) ||
+              p.display_name?.toLowerCase() === candidateUserId.toLowerCase()
+          );
+          if (matched) {
+            userProfile = { id: matched.id };
+          }
+        }
+      }
+
+      return userProfile ?? { id: "5ffefb55-2973-47cd-8ccd-7c78e92cd043" };
+    }
+
+    // -----------------------------------------------------
+    // 4. Fetch preflight state in parallel to minimize latency
+    // -----------------------------------------------------
+
+    const [
+      providerCheckResult,
+      existingClickResult,
+      reversalOrigConvResult,
+      duplicateConvResult,
+      resolvedUserProfile,
+      existingOfferResult,
+    ] = await Promise.all([
+      input.providerName
+        ? (async () => {
+            const { getStoredProvidersAsync, matchesProvider } = await import("@/lib/providers-store");
+            const providers = await getStoredProvidersAsync();
+            return providers.find((p) => matchesProvider(p, input.providerName!)) ?? null;
+          })()
+        : Promise.resolve(null),
+      supabaseAdmin
+        .from("offer_clicks")
+        .select("click_id")
+        .eq("click_id", input.clickId.trim())
+        .maybeSingle(),
+      targetStatus === "reversed" && reversalLookupTxnId
+        ? supabaseAdmin
+            .from("conversions")
+            .select("id, click_id, user_id, offer_id, provider_name, status, reward_points")
+            .eq("provider_conversion_id", reversalLookupTxnId)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+      targetStatus !== "reversed" && input.providerConversionId
+        ? (input.providerName
+            ? supabaseAdmin
+                .from("conversions")
+                .select("id, status, reward_points, user_id")
+                .eq("provider_name", input.providerName)
+                .eq("provider_conversion_id", input.providerConversionId)
+                .limit(1)
+                .maybeSingle()
+            : supabaseAdmin
+                .from("conversions")
+                .select("id, status, reward_points, user_id")
+                .is("provider_name", null)
+                .eq("provider_conversion_id", input.providerConversionId)
+                .limit(1)
+                .maybeSingle())
+        : Promise.resolve({ data: null }),
+      resolveFallbackUserProfile(),
+      supabaseAdmin
+        .from("offers")
+        .select("id, reward_points, reward_usd")
+        .eq("title", displayOfferTitle)
+        .limit(1)
+        .maybeSingle(),
+    ]);
+
+    if (providerCheckResult && providerCheckResult.active === false) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: `Offer wall '${providerCheckResult.name}' is currently disabled by administrator`,
+        },
+        {
+          status: 403,
+        }
+      );
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let data: any = null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let error: any = null;
 
-    const reversalLookupTxnId = input.rewardedTxnId || input.providerConversionId;
-    if (targetStatus === "reversed" && reversalLookupTxnId) {
-      const { data: origConv } = await supabaseAdmin
-        .from("conversions")
-        .select("id, click_id, user_id, offer_id, provider_name, status, reward_points")
-        .eq("provider_conversion_id", reversalLookupTxnId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+    const existingConv = duplicateConvResult?.data;
+    if (existingConv) {
+      data = {
+        ok: true,
+        duplicate: true,
+        conversion_id: existingConv.id,
+        status: existingConv.status,
+        reward_points: existingConv.reward_points,
+      };
+    }
 
-      if (origConv) {
-        if (origConv.status === "reversed") {
-          return new NextResponse(isOffery ? "ok" : "1", {
-            status: 200,
-            headers: { "content-type": "text/plain" },
-          });
-        }
+    const origConv = reversalOrigConvResult?.data;
+    if (!data && targetStatus === "reversed" && origConv) {
+      if (origConv.status === "reversed") {
+        return new NextResponse(isOffery ? "ok" : "1", {
+          status: 200,
+          headers: { "content-type": "text/plain" },
+        });
+      }
 
-        const deductPoints = Math.max(0, Math.round(Number(origConv.reward_points ?? 0)));
-        if (deductPoints > 0 && origConv.user_id) {
-          const { data: profile } = await supabaseAdmin
-            .from("user_profiles")
-            .select("available_points")
-            .eq("id", origConv.user_id)
-            .maybeSingle();
+      const deductPoints = Math.max(0, Math.round(Number(origConv.reward_points ?? 0)));
+      if (deductPoints > 0 && origConv.user_id) {
+        const { data: profile } = await supabaseAdmin
+          .from("user_profiles")
+          .select("available_points")
+          .eq("id", origConv.user_id)
+          .maybeSingle();
 
-          const currentBal = Number(profile?.available_points ?? 0);
-          const newBal = Math.max(0, currentBal - deductPoints);
+        const currentBal = Number(profile?.available_points ?? 0);
+        const newBal = Math.max(0, currentBal - deductPoints);
 
-          await supabaseAdmin
+        await Promise.all([
+          supabaseAdmin
             .from("user_profiles")
             .update({
               available_points: newBal,
               updated_at: new Date().toISOString(),
             })
-            .eq("id", origConv.user_id);
-
-          await supabaseAdmin.from("reward_ledger").insert({
+            .eq("id", origConv.user_id),
+          supabaseAdmin.from("reward_ledger").insert({
             user_id: origConv.user_id,
             conversion_id: origConv.id,
             entry_type: "reversal",
             points: -deductPoints,
             balance_after: newBal,
             description: `Partner reversal (${input.providerName || origConv.provider_name || "Partner"}): ${reversalLookupTxnId}`,
-          });
-        }
+          }),
+        ]);
+      }
 
-        await supabaseAdmin
+      await Promise.all([
+        supabaseAdmin
           .from("conversions")
           .update({
             status: "reversed",
             updated_at: new Date().toISOString(),
           })
-          .eq("id", origConv.id);
+          .eq("id", origConv.id),
+        origConv.click_id
+          ? supabaseAdmin
+              .from("offer_clicks")
+              .update({ status: "expired" })
+              .eq("click_id", origConv.click_id)
+          : Promise.resolve(),
+      ]);
 
-        if (origConv.click_id) {
-          await supabaseAdmin
-            .from("offer_clicks")
-            .update({ status: "expired" })
-            .eq("click_id", origConv.click_id);
-        }
-
-        data = {
-          ok: true,
-          duplicate: false,
-          conversion_id: origConv.id,
-          status: "reversed",
-          reward_points: 0,
-          user_id: origConv.user_id,
-        };
-      }
+      data = {
+        ok: true,
+        duplicate: false,
+        conversion_id: origConv.id,
+        status: "reversed",
+        reward_points: 0,
+        user_id: origConv.user_id,
+      };
     }
 
-    if (!data) {
+    if (!data && existingClickResult?.data) {
       const rpcRes = await supabaseAdmin.rpc(
         "process_offer_postback",
         {
@@ -993,136 +1164,30 @@ async function processPostback(
       error = rpcRes.error;
     }
 
-    // If Unknown click_id, check if input.clickId or userId is a registered user profile
-    // (This enables seamless crediting for external partner offerwall callbacks like Klink, Adswedmedia, Gemlads, Notik)
-    if (error && error.message.toLowerCase().includes("unknown click_id")) {
-      const candidateUserId = (input.userId || input.clickId).trim().replace(/^[#\s]+/, "");
-
-      // Resolve user profile: supports full UUID, UUID prefix (e.g. "6"), or email address
-      let userProfile: { id: string } | null = null;
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-      if (uuidRegex.test(candidateUserId)) {
-        const { data } = await supabaseAdmin
-          .from("user_profiles")
-          .select("id")
-          .eq("id", candidateUserId)
-          .maybeSingle();
-        userProfile = data;
-      } else if (candidateUserId && candidateUserId !== "test" && !candidateUserId.includes("{")) {
-        const { findUserIdByNumericIdAsync } = await import("@/lib/user-ids");
-        const resolvedByNum = await findUserIdByNumericIdAsync(candidateUserId);
-        if (resolvedByNum) {
-          userProfile = { id: resolvedByNum };
-        } else if (candidateUserId === "6" || candidateUserId.toLowerCase() === "mamnunahmedcpa") {
-          userProfile = { id: "5ffefb55-2973-47cd-8ccd-7c78e92cd043" };
-        } else if (candidateUserId.includes("@")) {
-          const { data: authList } = await supabaseAdmin.auth.admin.listUsers();
-          const matched = (authList?.users ?? []).find(
-            (u) => u.email?.toLowerCase() === candidateUserId.toLowerCase()
-          );
-          if (matched) {
-            userProfile = { id: matched.id };
-          }
-        } else {
-          const { data: allProfiles } = await supabaseAdmin
-            .from("user_profiles")
-            .select("id, display_name")
-            .limit(100);
-          const matched = (allProfiles ?? []).find((p) =>
-            p.id.toLowerCase().startsWith(candidateUserId.toLowerCase()) ||
-            p.display_name?.toLowerCase() === candidateUserId.toLowerCase()
-          );
-          if (matched) {
-            userProfile = { id: matched.id };
-          }
-        }
-      }
-
-      // If still not resolved (e.g. literal template "{user_id}"), fallback to admin main account
-      if (!userProfile) {
-        userProfile = { id: "5ffefb55-2973-47cd-8ccd-7c78e92cd043" };
-      }
-
-      let providerName = input.providerName;
-      if (!providerName) {
-        const pathLower = url.pathname.toLowerCase();
-        const wallParamLower = (url.searchParams.get("wall") || "").toLowerCase();
-        if (pathLower.includes("offery") || wallParamLower.includes("offery")) {
-          providerName = "Offery";
-        } else if (pathLower.includes("gemiad") || pathLower.includes("gemlad") || pathLower.includes("gemiwall")) {
-          providerName = "Gemiads";
-        } else if (pathLower.includes("nexowall")) {
-          providerName = "Nexowall";
-        } else if (pathLower.includes("adswedmedia") || pathLower.includes("adswebmedia")) {
-          providerName = "Adswedmedia";
-        } else if (pathLower.includes("upwall")) {
-          providerName = "Upwall";
-        } else if (
-          pathLower.includes("notik") ||
-          wallParamLower.includes("notik") ||
-          url.searchParams.get("app_id") === "CFGU6xt4mO"
-        ) {
-          providerName = "Notik";
-        } else if (pathLower.includes("clickwall") || !isEmptyOrPlaceholder(input.payload?.txid)) {
-          providerName = "Clickwall";
-        } else if (
-          !isEmptyOrPlaceholder(input.payload?.reward) ||
-          !isEmptyOrPlaceholder(input.payload?.trans_id) ||
-          !isEmptyOrPlaceholder(input.payload?.transId)
-        ) {
-          providerName = "Gemiads";
-        } else {
-          providerName = "Clickwall";
-        }
-      }
-      const rawPayout = numericPayout(input.payoutUsd);
-      const absPayout = Number.isFinite(rawSignedPayout) ? Math.abs(rawSignedPayout) : rawPayout;
-      const absRewardPoints =
-        input.rewardPoints != null && Number.isFinite(input.rewardPoints)
-          ? Math.abs(input.rewardPoints)
-          : 0;
-      const pointsAwarded =
-        absRewardPoints > 0
-          ? Math.max(1, Math.round(absRewardPoints))
-          : Math.max(100, Math.round((absPayout > 0 ? absPayout : 1.0) * 1000));
-      const offerUsdValue = absPayout > 0 ? absPayout : pointsAwarded / 1000;
-
-      const candidateOfferName =
-        [
-          !isEmptyOrPlaceholder(input.payload?.offer_name) ? String(input.payload?.offer_name).trim() : "",
-          !isEmptyOrPlaceholder(input.payload?.offerName) ? String(input.payload?.offerName).trim() : "",
-          !isEmptyOrPlaceholder(input.payload?.title) ? String(input.payload?.title).trim() : "",
-          !isEmptyOrPlaceholder(input.payload?.campaign_name) ? String(input.payload?.campaign_name).trim() : "",
-        ].find(Boolean) || "";
-      const candidateOfferId =
-        [
-          !isEmptyOrPlaceholder(input.payload?.offer_id) ? String(input.payload?.offer_id).trim() : "",
-          !isEmptyOrPlaceholder(input.payload?.offerId) ? String(input.payload?.offerId).trim() : "",
-        ].find(Boolean) || "";
-      const rawOfferName =
-        candidateOfferName || (candidateOfferId ? `Offer #${candidateOfferId}` : "");
-      const displayOfferTitle = rawOfferName ? `${providerName}: ${rawOfferName}` : `${providerName} Activities`;
+    // If Unknown click_id (no matching offer_clicks row), credit resolved user profile via dynamic offer + click
+    if (!data && (!existingClickResult?.data || (error && error.message.toLowerCase().includes("unknown click_id")))) {
+      const userProfile = resolvedUserProfile;
+      const providerName = resolvedProviderName;
 
       let offerId: string | null = null;
-      const { data: existingOffer } = await supabaseAdmin
-        .from("offers")
-        .select("id")
-        .eq("title", displayOfferTitle)
-        .limit(1)
-        .maybeSingle();
+      const existingOffer = existingOfferResult?.data;
 
       if (existingOffer) {
         offerId = existingOffer.id;
-        const { error: updateOfferError } = await supabaseAdmin
-          .from("offers")
-          .update({
-            reward_points: pointsAwarded,
-            reward_usd: offerUsdValue,
-          })
-          .eq("id", offerId);
-        if (updateOfferError) {
-          console.error("Failed to update dynamic offer for postback:", updateOfferError);
+        if (
+          Number(existingOffer.reward_points) !== pointsAwarded ||
+          Math.abs(Number(existingOffer.reward_usd) - offerUsdValue) > 0.0001
+        ) {
+          const { error: updateOfferError } = await supabaseAdmin
+            .from("offers")
+            .update({
+              reward_points: pointsAwarded,
+              reward_usd: offerUsdValue,
+            })
+            .eq("id", offerId);
+          if (updateOfferError) {
+            console.error("Failed to update dynamic offer for postback:", updateOfferError);
+          }
         }
       } else {
         const { data: newOffer, error: insertOfferError } = await supabaseAdmin
@@ -1170,6 +1235,8 @@ async function processPostback(
         });
         data = retryRes.data;
         error = retryRes.error;
+      } else {
+        error = error || { message: "Could not resolve or create offer for postback" };
       }
     }
 
@@ -1263,46 +1330,44 @@ async function processPostback(
     // -----------------------------------------------------
 
     if (data?.ok && !data?.duplicate && data?.user_id) {
-      try {
-        const points = Number(data.reward_points ?? 0);
-        if (data.status === "approved" && points > 0) {
-          try {
+      const notifyUserId = String(data.user_id);
+      const notifyStatus = String(data.status ?? "");
+      const points = Number(data.reward_points ?? 0);
+      const notifyProvider = resolvedProviderName || input.providerName || "an offer";
+
+      runPostbackAfter(async () => {
+        try {
+          if (notifyStatus === "approved" && points > 0) {
+            await Promise.allSettled([
+              supabaseAdmin.from("notifications").insert({
+                user_id: notifyUserId,
+                type: "reward",
+                title: "Reward credited",
+                message: `You earned ${points.toLocaleString()} points from ${notifyProvider}!`,
+                is_read: false,
+              }),
+              (async () => {
+                const { processReferralCommission } = await import("@/lib/referrals");
+                await processReferralCommission(notifyUserId, points);
+              })(),
+              (async () => {
+                const { processLevelMultiplierBonus } = await import("@/lib/levels");
+                await processLevelMultiplierBonus(notifyUserId, points);
+              })(),
+            ]);
+          } else if (notifyStatus === "reversed") {
             await supabaseAdmin.from("notifications").insert({
-              user_id: data.user_id,
-              type: "reward",
-              title: "Reward credited",
-              message: `You earned ${points.toLocaleString()} points from ${input.providerName || "an offer"}!`,
+              user_id: notifyUserId,
+              type: "system",
+              title: "Offer Reversed",
+              message: `A previous offer conversion was reversed by the partner network.`,
               is_read: false,
             });
-          } catch (notifErr) {
-            console.error("Failed to insert reward notification:", notifErr);
           }
-
-          try {
-            const { processReferralCommission } = await import("@/lib/referrals");
-            await processReferralCommission(data.user_id, points);
-          } catch (refErr) {
-            console.error("Failed to process referral commission on postback:", refErr);
-          }
-
-          try {
-            const { processLevelMultiplierBonus } = await import("@/lib/levels");
-            await processLevelMultiplierBonus(data.user_id, points);
-          } catch (levelErr) {
-            console.error("Failed to process level multiplier bonus on postback:", levelErr);
-          }
-        } else if (data.status === "reversed") {
-          await supabaseAdmin.from("notifications").insert({
-            user_id: data.user_id,
-            type: "system",
-            title: "Offer Reversed",
-            message: `A previous offer conversion was reversed by the partner network.`,
-            is_read: false,
-          });
+        } catch (err) {
+          console.error("Failed to create postback notification:", err);
         }
-      } catch (err) {
-        console.error("Failed to create postback notification:", err);
-      }
+      });
     }
 
     const isOfferwallNetwork =
