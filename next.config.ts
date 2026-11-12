@@ -90,6 +90,22 @@ const nextConfig: NextConfig = {
         source: "/postback/notik/",
         destination: "/api/postback",
       },
+      {
+        source: "/api/postback/offery",
+        destination: "/api/postback",
+      },
+      {
+        source: "/postback/offery",
+        destination: "/api/postback",
+      },
+      {
+        source: "/api/postback/offery/",
+        destination: "/api/postback",
+      },
+      {
+        source: "/postback/offery/",
+        destination: "/api/postback",
+      },
     ];
   },
   async headers() {

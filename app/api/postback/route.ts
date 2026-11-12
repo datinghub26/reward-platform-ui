@@ -87,8 +87,47 @@ function pickBodyNumber(
   return null;
 }
 
+async function readCombinedParams(
+  request: Request
+): Promise<URLSearchParams> {
+  const url = new URL(request.url);
+  const combined = new URLSearchParams(url.searchParams);
+  const contentType = (request.headers.get("content-type") ?? "").toLowerCase();
+
+  try {
+    if (contentType.includes("application/x-www-form-urlencoded")) {
+      const text = await request.clone().text();
+      for (const [k, v] of new URLSearchParams(text).entries()) {
+        combined.append(k, v);
+      }
+    } else if (contentType.includes("multipart/form-data")) {
+      const formData = await request.clone().formData();
+      for (const [k, v] of formData.entries()) {
+        if (typeof v === "string") {
+          combined.append(k, v);
+        }
+      }
+    } else if (
+      request.method !== "GET" &&
+      request.method !== "HEAD" &&
+      !contentType.includes("application/json")
+    ) {
+      const text = (await request.clone().text()).trim();
+      if (text && text.includes("=")) {
+        for (const [k, v] of new URLSearchParams(text).entries()) {
+          combined.append(k, v);
+        }
+      }
+    }
+  } catch {
+    // Ignore body parse errors and keep query string params
+  }
+
+  return combined;
+}
+
 // ---------------------------------------------------------
-// Read JSON or query-string input
+// Read JSON or query/form input
 // ---------------------------------------------------------
 
 async function readInput(
@@ -119,6 +158,7 @@ async function readInput(
         "clickid",
         "subid",
         "sub_id",
+        "subId",
         "sub1",
         "sub_1",
         "s1",
@@ -158,7 +198,15 @@ async function readInput(
                 !isEmptyOrPlaceholder(body.app_id) &&
                 !isEmptyOrPlaceholder(body.txn_id))
             ? "Notik"
-            : null),
+            : !isEmptyOrPlaceholder(body.signature) &&
+                !isEmptyOrPlaceholder(body.transId) &&
+                (!isEmptyOrPlaceholder(body.reward_name) ||
+                  !isEmptyOrPlaceholder(body.reward_value) ||
+                  !isEmptyOrPlaceholder(body.offer_type))
+              ? "Offery"
+              : new URL(request.url).pathname.toLowerCase().includes("offery")
+                ? "Offery"
+                : null),
 
       providerConversionId: pickBodyString(body, [
         "provider_conversion_id",
@@ -212,7 +260,7 @@ async function readInput(
   // -------------------------------------------------------
 
   const url = new URL(request.url);
-  const params = url.searchParams;
+  const params = await readCombinedParams(request);
 
   const pathStr = url.pathname.toLowerCase();
   const reqMatchedPath = (request.headers.get("x-matched-path") || "").toLowerCase();
@@ -220,6 +268,16 @@ async function readInput(
   const wallHint = (
     pickParam(params, ["provider_name", "network", "provider", "wall"]) || ""
   ).toLowerCase();
+
+  const isOffery =
+    pathStr.includes("offery") ||
+    reqMatchedPath.includes("offery") ||
+    reqInvokePath.includes("offery") ||
+    wallHint.includes("offery") ||
+    (pickParam(params, ["signature"]) !== null &&
+      pickParam(params, ["transId"]) !== null &&
+      (pickParam(params, ["reward_name", "reward_value", "offer_type"]) !== null ||
+        pickParam(params, ["subId"]) !== null));
 
   const isGemiads =
     pathStr.includes("gemiad") ||
@@ -268,6 +326,7 @@ async function readInput(
     wallHint.includes("upwall");
 
   const isTxidClickwallFallback =
+    !isOffery &&
     !isGemiads &&
     !isNexo &&
     !isAdsweb &&
@@ -322,19 +381,21 @@ async function readInput(
 
     providerName:
       pickParam(params, ["provider_name", "network", "provider", "wall"]) ??
-      (isGemiads
-        ? "Gemiads"
-        : isNexo
-          ? "Nexowall"
-          : isAdsweb
-            ? "Adswedmedia"
-            : isNotik
-              ? "Notik"
-              : isExplicitClickwall || isTxidClickwallFallback
-                ? "Clickwall"
-                : isUpwall
-                  ? "Upwall"
-                  : null),
+      (isOffery
+        ? "Offery"
+        : isGemiads
+          ? "Gemiads"
+          : isNexo
+            ? "Nexowall"
+            : isAdsweb
+              ? "Adswedmedia"
+              : isNotik
+                ? "Notik"
+                : isExplicitClickwall || isTxidClickwallFallback
+                  ? "Clickwall"
+                  : isUpwall
+                    ? "Upwall"
+                    : null),
 
     providerConversionId: pickParam(params, [
       "provider_conversion_id",
@@ -397,33 +458,44 @@ async function validSecret(request: Request): Promise<boolean> {
     request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
 
   const url = new URL(request.url);
+  const combinedParams = await readCombinedParams(request);
   const querySecret =
-    url.searchParams.get("token") ||
-    url.searchParams.get("secret") ||
-    url.searchParams.get("key") ||
-    url.searchParams.get("password") ||
-    url.searchParams.get("auth");
+    combinedParams.get("token") ||
+    combinedParams.get("secret") ||
+    combinedParams.get("key") ||
+    combinedParams.get("password") ||
+    combinedParams.get("auth");
 
   const providedSecret = headerSecret || querySecret;
 
-  // Dedicated offerwall webhook paths (e.g. Clickwall / Nexowall / Gemiads / Adswebmedia / Upwall / Notik)
+  // Dedicated offerwall webhook paths (e.g. Clickwall / Nexowall / Gemiads / Adswebmedia / Upwall / Notik / Offery)
   const pathname = url.pathname.toLowerCase();
   const matchedPath = (request.headers.get("x-matched-path") || "").toLowerCase();
   const invokePath = (request.headers.get("x-invoke-path") || "").toLowerCase();
   const queryWall = (
-    pickParam(url.searchParams, ["wall", "network", "provider"]) || ""
+    pickParam(combinedParams, ["wall", "network", "provider"]) || ""
   ).toLowerCase();
-  const placementId = pickParam(url.searchParams, ["placementId", "placement_id"]) || "";
+  const placementId = pickParam(combinedParams, ["placementId", "placement_id"]) || "";
 
   const isNotikRequest =
     pathname.includes("notik") ||
     matchedPath.includes("notik") ||
     invokePath.includes("notik") ||
     queryWall.includes("notik") ||
-    pickParam(url.searchParams, ["app_id"]) === "CFGU6xt4mO" ||
-    (pickParam(url.searchParams, ["pub_id"]) !== null &&
-      pickParam(url.searchParams, ["app_id"]) !== null &&
-      pickParam(url.searchParams, ["txn_id"]) !== null);
+    pickParam(combinedParams, ["app_id"]) === "CFGU6xt4mO" ||
+    (pickParam(combinedParams, ["pub_id"]) !== null &&
+      pickParam(combinedParams, ["app_id"]) !== null &&
+      pickParam(combinedParams, ["txn_id"]) !== null);
+
+  const isOfferyRequest =
+    pathname.includes("offery") ||
+    matchedPath.includes("offery") ||
+    invokePath.includes("offery") ||
+    queryWall.includes("offery") ||
+    (pickParam(combinedParams, ["signature"]) !== null &&
+      pickParam(combinedParams, ["transId"]) !== null &&
+      (pickParam(combinedParams, ["reward_name", "reward_value", "offer_type"]) !== null ||
+        pickParam(combinedParams, ["subId"]) !== null));
 
   const isDedicatedOfferwallRoute =
     pathname.includes("clickwall") ||
@@ -452,11 +524,12 @@ async function validSecret(request: Request): Promise<boolean> {
     matchedPath.includes("upwall") ||
     invokePath.includes("upwall") ||
     queryWall.includes("upwall") ||
-    isNotikRequest;
+    isNotikRequest ||
+    isOfferyRequest;
 
   const hasConversionIdentifiers =
     Boolean(
-      pickParam(url.searchParams, [
+      pickParam(combinedParams, [
         "sub_id",
         "user_id",
         "userId",
@@ -469,7 +542,7 @@ async function validSecret(request: Request): Promise<boolean> {
       ])
     ) &&
     Boolean(
-      pickParam(url.searchParams, [
+      pickParam(combinedParams, [
         "trans_id",
         "transId",
         "txn_id",
@@ -604,6 +677,11 @@ async function processPostback(
       pathStr.includes("notik") ||
       reqMatchedPath.includes("notik") ||
       reqInvokePath.includes("notik");
+    const isOffery =
+      input.providerName?.toLowerCase().includes("offery") ||
+      pathStr.includes("offery") ||
+      reqMatchedPath.includes("offery") ||
+      reqInvokePath.includes("offery");
     const rawSignedPayout = Number(input.payoutUsd);
 
     // -----------------------------------------------------
@@ -617,12 +695,12 @@ async function processPostback(
     ) {
       if (isGemiAd) {
         input.clickId = input.providerConversionId || `gemiad-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-      } else if (isNotik) {
+      } else if (isNotik || isOffery) {
         const hasNumericRewardOrPayout =
           (Number.isFinite(rawSignedPayout) && rawSignedPayout !== 0) ||
           (input.rewardPoints != null && Number.isFinite(input.rewardPoints) && input.rewardPoints !== 0);
         if (!input.providerConversionId && !input.userId && !input.rewardedTxnId && !hasNumericRewardOrPayout) {
-          return new NextResponse("1", {
+          return new NextResponse(isOffery ? "ok" : "1", {
             status: 200,
             headers: { "content-type": "text/plain" },
           });
@@ -630,7 +708,7 @@ async function processPostback(
         input.clickId =
           input.providerConversionId ||
           input.rewardedTxnId ||
-          `notik-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+          `${isOffery ? "offery" : "notik"}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
       } else {
         return NextResponse.json(
           {
@@ -649,8 +727,8 @@ async function processPostback(
     // -----------------------------------------------------
 
     if (input.providerName) {
-      const { getStoredProviders, matchesProvider } = await import("@/lib/providers-store");
-      const providers = getStoredProviders();
+      const { getStoredProvidersAsync, matchesProvider } = await import("@/lib/providers-store");
+      const providers = await getStoredProvidersAsync();
       const matched = providers.find((p) => matchesProvider(p, input.providerName!));
       if (matched && matched.active === false) {
         return NextResponse.json(
@@ -731,18 +809,19 @@ async function processPostback(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let error: any = null;
 
-    if (targetStatus === "reversed" && input.rewardedTxnId) {
+    const reversalLookupTxnId = input.rewardedTxnId || input.providerConversionId;
+    if (targetStatus === "reversed" && reversalLookupTxnId) {
       const { data: origConv } = await supabaseAdmin
         .from("conversions")
         .select("id, click_id, user_id, offer_id, provider_name, status, reward_points")
-        .eq("provider_conversion_id", input.rewardedTxnId)
+        .eq("provider_conversion_id", reversalLookupTxnId)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 
       if (origConv) {
         if (origConv.status === "reversed") {
-          return new NextResponse("1", {
+          return new NextResponse(isOffery ? "ok" : "1", {
             status: 200,
             headers: { "content-type": "text/plain" },
           });
@@ -773,7 +852,7 @@ async function processPostback(
             entry_type: "reversal",
             points: -deductPoints,
             balance_after: newBal,
-            description: `Partner reversal (${input.providerName || origConv.provider_name || "Notik"}): ${input.rewardedTxnId}`,
+            description: `Partner reversal (${input.providerName || origConv.provider_name || "Partner"}): ${reversalLookupTxnId}`,
           });
         }
 
@@ -887,7 +966,9 @@ async function processPostback(
       if (!providerName) {
         const pathLower = url.pathname.toLowerCase();
         const wallParamLower = (url.searchParams.get("wall") || "").toLowerCase();
-        if (pathLower.includes("gemiad") || pathLower.includes("gemlad") || pathLower.includes("gemiwall")) {
+        if (pathLower.includes("offery") || wallParamLower.includes("offery")) {
+          providerName = "Offery";
+        } else if (pathLower.includes("gemiad") || pathLower.includes("gemlad") || pathLower.includes("gemiwall")) {
           providerName = "Gemiads";
         } else if (pathLower.includes("nexowall")) {
           providerName = "Nexowall";
@@ -1168,6 +1249,13 @@ async function processPostback(
 
     if (isGemiAd) {
       return new NextResponse("Approved", {
+        status: 200,
+        headers: { "content-type": "text/plain" },
+      });
+    }
+
+    if (isOffery) {
+      return new NextResponse("ok", {
         status: 200,
         headers: { "content-type": "text/plain" },
       });
