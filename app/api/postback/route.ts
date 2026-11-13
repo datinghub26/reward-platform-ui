@@ -1,8 +1,8 @@
 import { NextResponse, after } from "next/server";
 import { createHash, timingSafeEqual } from "crypto";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { getPlatformSettings } from "@/lib/settings";
-import { isOfferHeldByRule } from "@/lib/pending-rules";
+import { getPlatformSettings, getPlatformSettingsAsync } from "@/lib/settings";
+import { isOfferHeldByRule, getPendingRulesAsync } from "@/lib/pending-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -988,6 +988,8 @@ async function processPostback(
     // -----------------------------------------------------
 
     const [
+      livePlatformSettings,
+      livePendingRules,
       providerCheckResult,
       existingClickResult,
       reversalOrigConvResult,
@@ -995,6 +997,8 @@ async function processPostback(
       resolvedUserProfile,
       existingOfferResult,
     ] = await Promise.all([
+      getPlatformSettingsAsync().catch(() => settings),
+      getPendingRulesAsync().catch(() => []),
       input.providerName
         ? (async () => {
             const { getStoredProvidersAsync, matchesProvider } = await import("@/lib/providers-store");
@@ -1041,6 +1045,22 @@ async function processPostback(
         .limit(1)
         .maybeSingle(),
     ]);
+
+    // Check live settings for pending threshold and rules
+    if (targetStatus === "approved") {
+      if (livePlatformSettings.enablePendingLeads && pointsAwarded >= livePlatformSettings.pendingPointsThreshold) {
+        targetStatus = "pending";
+      } else if (offerIdentifier) {
+        const matchedRule = (livePendingRules || []).find(
+          (r) =>
+            r.active &&
+            (r.offer_id === offerIdentifier || r.offer_id.toLowerCase() === offerIdentifier.toLowerCase())
+        );
+        if (matchedRule) {
+          targetStatus = "pending";
+        }
+      }
+    }
 
     if (providerCheckResult && providerCheckResult.active === false) {
       return NextResponse.json(
@@ -1326,14 +1346,50 @@ async function processPostback(
     }
 
     // -----------------------------------------------------
-    // 6. Successful processing - notify user
+    // 6. Successful processing - notify user & sync pending
     // -----------------------------------------------------
 
     if (data?.ok && !data?.duplicate && data?.user_id) {
       const notifyUserId = String(data.user_id);
-      const notifyStatus = String(data.status ?? "");
-      const points = Number(data.reward_points ?? 0);
+      let notifyStatus = String(data.status ?? "");
+      let points = Number(data.reward_points ?? 0);
       const notifyProvider = resolvedProviderName || input.providerName || "an offer";
+
+      // If pending, PostgreSQL RPC stored reward_points = 0; fix conversions & user_profiles.pending_points
+      if ((targetStatus === "pending" || notifyStatus === "pending") && pointsAwarded > 0) {
+        notifyStatus = "pending";
+        points = pointsAwarded;
+        data.status = "pending";
+        data.reward_points = pointsAwarded;
+
+        try {
+          const { data: currentProf } = await supabaseAdmin
+            .from("user_profiles")
+            .select("pending_points")
+            .eq("id", notifyUserId)
+            .maybeSingle();
+
+          const curPending = Number(currentProf?.pending_points ?? 0);
+
+          await Promise.all([
+            data.conversion_id
+              ? supabaseAdmin
+                  .from("conversions")
+                  .update({ reward_points: pointsAwarded })
+                  .eq("id", data.conversion_id)
+              : Promise.resolve(),
+            supabaseAdmin
+              .from("user_profiles")
+              .update({
+                pending_points: curPending + pointsAwarded,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", notifyUserId),
+          ]);
+        } catch (syncErr) {
+          console.error("Failed to sync pending reward_points and profile:", syncErr);
+        }
+      }
 
       runPostbackAfter(async () => {
         try {
@@ -1354,6 +1410,23 @@ async function processPostback(
                 const { processLevelMultiplierBonus } = await import("@/lib/levels");
                 await processLevelMultiplierBonus(notifyUserId, points);
               })(),
+            ]);
+          } else if (notifyStatus === "pending" && points > 0) {
+            await Promise.allSettled([
+              supabaseAdmin.from("notifications").insert({
+                user_id: notifyUserId,
+                type: "system",
+                title: "Reward Pending ⏳",
+                message: `Your reward of ${points.toLocaleString()} points from ${notifyProvider} (${rawOfferName || "Offer"}) is pending verification.`,
+                is_read: false,
+              }),
+              supabaseAdmin.from("activity_log").insert({
+                user_id: notifyUserId,
+                event_type: "offer_pending",
+                title: "Reward pending",
+                description: `${notifyProvider}: ${rawOfferName || "Offer"} (under verification)`,
+                points_delta: points,
+              }),
             ]);
           } else if (notifyStatus === "reversed") {
             await supabaseAdmin.from("notifications").insert({

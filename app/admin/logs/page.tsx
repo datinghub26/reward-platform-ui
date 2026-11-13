@@ -26,7 +26,7 @@ export default async function AdminLogsPage() {
       .select("id, user_id, points, balance_after, entry_type, description, created_at")
       .order("created_at", { ascending: false })
       .limit(50),
-    supabaseAdmin.auth.admin.listUsers(),
+    supabaseAdmin.auth.admin.listUsers({ perPage: 1000 }),
     supabaseAdmin.from("user_profiles").select("id, display_name"),
   ]);
 
@@ -68,13 +68,17 @@ export default async function AdminLogsPage() {
   // Add Postback Conversions
   (conversionsRes.data ?? []).forEach((c) => {
     const offerTitle = (c.offers as any)?.title || "Offer completion";
+    const pts =
+      Number(c.reward_points ?? 0) ||
+      Number((c.offers as any)?.reward_points ?? 0) ||
+      Math.round(Number(c.payout_usd || 0) * 1000);
     unifiedLogs.push({
       id: `conv-${c.id}`,
       timestamp: c.created_at,
       category: "postback",
       action: `OFFER ${c.status.toUpperCase()}`,
       user: getUserLabel(c.user_id),
-      details: `${offerTitle} via ${c.provider_name || "Provider"} (+${Number(c.reward_points).toLocaleString()} pts, $${Number(c.payout_usd || 0).toFixed(2)})`,
+      details: `${offerTitle} via ${c.provider_name || "Provider"} (+${pts.toLocaleString()} pts, $${Number(c.payout_usd || 0).toFixed(2)})`,
       status: c.status === "approved" ? "success" : c.status === "pending" ? "pending" : "reversed",
       metadata: `ID: ${c.id.slice(0, 8)}`,
     });

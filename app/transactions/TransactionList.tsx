@@ -31,6 +31,8 @@ function getEntryIcon(entryType: string) {
   switch (entryType) {
     case "credit":
       return "💰";
+    case "pending":
+      return "⏳";
     case "debit":
       return "💸";
     case "reversal":
@@ -46,6 +48,8 @@ function getEntryLabel(entryType: string) {
   switch (entryType) {
     case "credit":
       return "Reward Credit";
+    case "pending":
+      return "Pending Verification";
     case "debit":
       return "Withdrawal";
     case "reversal":
@@ -62,8 +66,13 @@ export default function TransactionList({
 }: {
   transactions: LedgerEntry[];
 }) {
-  const [filter, setFilter] = useState<"all" | "credit" | "debit" | "reversal">("all");
+  const [filter, setFilter] = useState<"all" | "credit" | "pending" | "debit" | "reversal">("all");
   const [search, setSearch] = useState("");
+
+  const pendingCount = useMemo(
+    () => transactions.filter((t) => t.entry_type === "pending").length,
+    [transactions]
+  );
 
   const filtered = useMemo(() => {
     return transactions.filter((item) => {
@@ -138,6 +147,22 @@ export default function TransactionList({
           >
             💰 Rewards (Credits)
           </button>
+          {pendingCount > 0 && (
+            <button
+              type="button"
+              className={`btn ${filter === "pending" ? "btn-primary" : ""}`}
+              onClick={() => setFilter("pending")}
+              style={{
+                padding: "6px 14px",
+                fontSize: "13px",
+                backgroundColor: filter === "pending" ? undefined : "rgba(234, 179, 8, 0.12)",
+                color: filter === "pending" ? undefined : "#facc15",
+                border: filter === "pending" ? undefined : "1px solid rgba(234, 179, 8, 0.3)",
+              }}
+            >
+              ⏳ Pending ({pendingCount})
+            </button>
+          )}
           <button
             type="button"
             className={`btn ${filter === "debit" ? "btn-primary" : ""}`}
@@ -194,6 +219,7 @@ export default function TransactionList({
         {filtered.length > 0 ? (
           filtered.map((transaction) => {
             const isCredit = transaction.entry_type === "credit";
+            const isPending = transaction.entry_type === "pending";
             const isReversal = transaction.entry_type === "reversal";
             const points = Math.abs(transaction.points);
 
@@ -213,8 +239,11 @@ export default function TransactionList({
                     <div className="muted">
                       {getEntryLabel(transaction.entry_type)} ·{" "}
                       {formatDate(transaction.created_at)}
-                      {transaction.balance_after != null && (
+                      {!isPending && transaction.balance_after != null && (
                         <span> · Balance after: {formatPoints(transaction.balance_after)} pts</span>
+                      )}
+                      {isPending && (
+                        <span style={{ color: "#facc15", fontWeight: 600 }}> · Awaiting verification</span>
                       )}
                     </div>
                   </div>
@@ -224,14 +253,20 @@ export default function TransactionList({
                   className={
                     isCredit
                       ? "positive"
+                      : isPending
+                      ? "warning-text"
                       : isReversal
                       ? "warning-text"
                       : "negative"
                   }
-                  style={{ fontWeight: 600, fontSize: "15px" }}
+                  style={{
+                    fontWeight: 600,
+                    fontSize: "15px",
+                    color: isPending ? "#facc15" : undefined,
+                  }}
                 >
-                  {isCredit ? "+" : "-"}
-                  {formatPoints(points)} pts
+                  {isCredit || isPending ? "+" : "-"}
+                  {formatPoints(points)} pts{isPending ? " (Pending)" : ""}
                 </div>
               </div>
             );

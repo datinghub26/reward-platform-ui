@@ -75,22 +75,30 @@ export default async function TransactionsPage() {
     .eq("id", user.id)
     .maybeSingle();
 
-  const { data: ledger, error } = await supabase
-    .from("reward_ledger")
-    .select(
-      `
-        id,
-        user_id,
-        entry_type,
-        points,
-        balance_after,
-        description,
-        created_at
-      `
-    )
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(100);
+  const [{ data: ledger, error }, { data: pendingConvs }] = await Promise.all([
+    supabase
+      .from("reward_ledger")
+      .select(
+        `
+          id,
+          user_id,
+          entry_type,
+          points,
+          balance_after,
+          description,
+          created_at
+        `
+      )
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(100),
+    supabase
+      .from("conversions")
+      .select("id, user_id, reward_points, payout_usd, provider_name, created_at, offers(title, reward_points)")
+      .eq("user_id", user.id)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false }),
+  ]);
 
   if (error) {
     return (
@@ -127,15 +135,35 @@ export default async function TransactionsPage() {
     );
   }
 
-  const transactions: LedgerEntry[] = (ledger ?? []).map((item) => ({
-    id: item.id,
-    user_id: item.user_id,
-    entry_type: item.entry_type ?? "",
-    points: Number(item.points ?? 0),
-    balance_after: Number(item.balance_after ?? 0),
-    description: item.description ?? null,
-    created_at: item.created_at,
-  }));
+  const pendingTransactions: LedgerEntry[] = (pendingConvs ?? []).map((c: any) => {
+    const pts =
+      Number(c.reward_points ?? 0) ||
+      Number(c.offers?.reward_points ?? 0) ||
+      Math.round(Number(c.payout_usd ?? 0) * 1000);
+    const offerTitle = c.offers?.title || c.provider_name || "Offer";
+    return {
+      id: `pending-${c.id}`,
+      user_id: c.user_id,
+      entry_type: "pending",
+      points: pts,
+      balance_after: Number(profile?.available_points ?? 0),
+      description: `${offerTitle} (Pending Verification)`,
+      created_at: c.created_at,
+    };
+  });
+
+  const transactions: LedgerEntry[] = [
+    ...pendingTransactions,
+    ...(ledger ?? []).map((item) => ({
+      id: item.id,
+      user_id: item.user_id,
+      entry_type: item.entry_type ?? "",
+      points: Number(item.points ?? 0),
+      balance_after: Number(item.balance_after ?? 0),
+      description: item.description ?? null,
+      created_at: item.created_at,
+    })),
+  ];
 
   const totalCredits = Number(profile?.lifetime_points ?? 0);
 

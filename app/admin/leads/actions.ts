@@ -205,6 +205,211 @@ export async function reverseLeadAction(params: {
   }
 }
 
+export async function approveLeadAction(conversionId: string) {
+  const auth = await verifyAdmin();
+  if (!auth.authorized) {
+    return { success: false, error: auth.error };
+  }
+
+  try {
+    const { data: conv, error: convErr } = await supabaseAdmin
+      .from("conversions")
+      .select("*, offers(title, reward_points)")
+      .eq("id", conversionId)
+      .single();
+
+    if (convErr || !conv) {
+      return { success: false, error: "Conversion record not found." };
+    }
+
+    if (conv.status !== "pending") {
+      return { success: false, error: `Only pending leads can be approved (current status: ${conv.status}).` };
+    }
+
+    const rewardPoints =
+      Number(conv.reward_points ?? 0) ||
+      Number((conv.offers as any)?.reward_points ?? 0) ||
+      Math.max(100, Math.round(Number(conv.payout_usd ?? 0) * 1000));
+    const userId = conv.user_id;
+    const offerTitle = (conv.offers as any)?.title || conv.provider_name || "Offer";
+
+    const { data: profile } = await supabaseAdmin
+      .from("user_profiles")
+      .select("available_points, pending_points, lifetime_points, leaderboard_points")
+      .eq("id", userId)
+      .maybeSingle();
+
+    const currentAvailable = Number(profile?.available_points ?? 0);
+    const currentPending = Number(profile?.pending_points ?? 0);
+    const currentLifetime = Number(profile?.lifetime_points ?? 0);
+    const currentLeaderboard = Number(profile?.leaderboard_points ?? 0);
+
+    const newAvailable = currentAvailable + rewardPoints;
+    const newPending = Math.max(0, currentPending - rewardPoints);
+    const newLifetime = currentLifetime + rewardPoints;
+    const newLeaderboard = currentLeaderboard + rewardPoints;
+
+    await Promise.all([
+      supabaseAdmin
+        .from("user_profiles")
+        .update({
+          available_points: newAvailable,
+          pending_points: newPending,
+          lifetime_points: newLifetime,
+          leaderboard_points: newLeaderboard,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", userId),
+      supabaseAdmin
+        .from("conversions")
+        .update({
+          status: "approved",
+          reward_points: rewardPoints,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", conversionId),
+      supabaseAdmin.from("reward_ledger").insert({
+        user_id: userId,
+        conversion_id: conversionId,
+        entry_type: "credit",
+        points: rewardPoints,
+        balance_after: newAvailable,
+        description: `Reward for approved lead: ${offerTitle}`,
+        created_at: new Date().toISOString(),
+      }),
+      supabaseAdmin.from("activity_log").insert({
+        user_id: userId,
+        event_type: "reward_credited",
+        title: "Reward credited",
+        description: offerTitle,
+        points_delta: rewardPoints,
+        created_at: new Date().toISOString(),
+      }),
+      supabaseAdmin.from("notifications").insert({
+        user_id: userId,
+        type: "reward",
+        title: "Reward Approved! 🎁",
+        message: `Your pending reward of ${rewardPoints.toLocaleString()} points for "${offerTitle}" has been verified and credited to your balance!`,
+        is_read: false,
+        created_at: new Date().toISOString(),
+      }),
+      conv.click_id
+        ? supabaseAdmin
+            .from("offer_clicks")
+            .update({
+              status: "converted",
+              converted_at: new Date().toISOString(),
+            })
+            .eq("click_id", conv.click_id)
+        : Promise.resolve(),
+    ]);
+
+    // Referral and level bonuses
+    try {
+      const { processReferralCommission } = await import("@/lib/referrals");
+      await processReferralCommission(userId, rewardPoints);
+    } catch (e) {
+      console.error("Referral commission error on approveLeadAction:", e);
+    }
+
+    try {
+      const { processLevelMultiplierBonus } = await import("@/lib/levels");
+      await processLevelMultiplierBonus(userId, rewardPoints);
+    } catch (e) {
+      console.error("Level multiplier error on approveLeadAction:", e);
+    }
+
+    revalidatePath("/admin/leads");
+    revalidatePath("/admin");
+    revalidatePath("/dashboard");
+    revalidatePath("/transactions");
+    return { success: true, points: rewardPoints };
+  } catch (err: unknown) {
+    console.error("approveLeadAction error:", err);
+    return { success: false, error: (err as Error).message || "Failed to approve lead." };
+  }
+}
+
+export async function rejectLeadAction(params: {
+  conversionId: string;
+  reason?: string;
+}) {
+  const auth = await verifyAdmin();
+  if (!auth.authorized) {
+    return { success: false, error: auth.error };
+  }
+
+  const { conversionId, reason } = params;
+
+  try {
+    const { data: conv, error: convErr } = await supabaseAdmin
+      .from("conversions")
+      .select("*, offers(title)")
+      .eq("id", conversionId)
+      .single();
+
+    if (convErr || !conv) {
+      return { success: false, error: "Conversion record not found." };
+    }
+
+    if (conv.status !== "pending") {
+      return { success: false, error: `Only pending leads can be rejected (current status: ${conv.status}).` };
+    }
+
+    const rewardPoints = Number(conv.reward_points ?? 0);
+    const userId = conv.user_id;
+
+    const { data: profile } = await supabaseAdmin
+      .from("user_profiles")
+      .select("pending_points")
+      .eq("id", userId)
+      .maybeSingle();
+
+    const currentPending = Number(profile?.pending_points ?? 0);
+    const newPending = Math.max(0, currentPending - rewardPoints);
+
+    await Promise.all([
+      supabaseAdmin
+        .from("user_profiles")
+        .update({
+          pending_points: newPending,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", userId),
+      supabaseAdmin
+        .from("conversions")
+        .update({
+          status: "rejected",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", conversionId),
+      supabaseAdmin.from("notifications").insert({
+        user_id: userId,
+        type: "system",
+        title: "Lead Rejected ⚠️",
+        message: `Your pending lead for "${(conv.offers as any)?.title || "Offer"}" was rejected${reason ? `: ${reason}` : "."}`,
+        is_read: false,
+        created_at: new Date().toISOString(),
+      }),
+      conv.click_id
+        ? supabaseAdmin
+            .from("offer_clicks")
+            .update({ status: "rejected" })
+            .eq("click_id", conv.click_id)
+        : Promise.resolve(),
+    ]);
+
+    revalidatePath("/admin/leads");
+    revalidatePath("/admin");
+    revalidatePath("/dashboard");
+    revalidatePath("/transactions");
+    return { success: true };
+  } catch (err: unknown) {
+    console.error("rejectLeadAction error:", err);
+    return { success: false, error: (err as Error).message || "Failed to reject lead." };
+  }
+}
+
 export async function deleteLeadAction(conversionId: string) {
   const auth = await verifyAdmin();
   if (!auth.authorized) {

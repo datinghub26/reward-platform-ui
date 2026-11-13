@@ -56,7 +56,7 @@ export default async function DashboardPage() {
     // Calculate pending rewards directly from conversions.
     supabase
       .from("conversions")
-      .select("reward_points")
+      .select("reward_points, payout_usd, offers(reward_points)")
       .eq("user_id", user.id)
       .eq("status", "pending"),
 
@@ -76,12 +76,13 @@ export default async function DashboardPage() {
 
   const available = Number(profile?.available_points ?? 0);
 
-  // Pending is calculated from all pending conversions
-  const pending = (pendingConversions ?? []).reduce(
-    (total, conversion) =>
-      total + Number(conversion.reward_points ?? 0),
+  // Pending is calculated from all pending conversions, fallback to profile.pending_points
+  const convPending = (pendingConversions ?? []).reduce(
+    (total, c: any) =>
+      total + (Number(c.reward_points ?? 0) || Number(c.offers?.reward_points ?? 0) || Math.round(Number(c.payout_usd ?? 0) * 1000)),
     0
   );
+  const pending = Math.max(convPending, Number(profile?.pending_points ?? 0));
 
   const lifetime = Number(profile?.lifetime_points ?? 0);
 

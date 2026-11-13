@@ -15,7 +15,7 @@ export default async function AdminUsersPage() {
   // Query auth.users to match emails
   const {
     data: { users: authUsers },
-  } = await supabaseAdmin.auth.admin.listUsers();
+  } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
 
   // Query admin_users to match real admin roles
   const { data: adminRows } = await supabaseAdmin

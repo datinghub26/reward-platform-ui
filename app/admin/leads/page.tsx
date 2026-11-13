@@ -13,7 +13,7 @@ export default async function AdminLeadsPage() {
 
   // Query auth.users, user_profiles, and clicks to match metadata
   const [authUsersRes, profilesRes, clicksRes] = await Promise.all([
-    supabaseAdmin.auth.admin.listUsers(),
+    supabaseAdmin.auth.admin.listUsers({ perPage: 1000 }),
     supabaseAdmin.from("user_profiles").select("id, display_name, country_code, available_points"),
     supabaseAdmin.from("offer_clicks").select("click_id, country_code, device_type, user_agent"),
   ]);
@@ -62,7 +62,10 @@ export default async function AdminLeadsPage() {
       offer_name: c.offers?.title || c.provider_name || "Offer Conversion",
       type: c.offers?.category || "offer",
       status: c.status || "approved",
-      points: Number(c.reward_points ?? 0),
+      points:
+        Number(c.reward_points ?? 0) ||
+        Number(c.offers?.reward_points ?? 0) ||
+        Math.round(Number(c.payout_usd ?? 0) * 1000),
       payout_usd: Number(c.payout_usd ?? 0),
       ip_address: "127.0.0.1",
       country_code: country,

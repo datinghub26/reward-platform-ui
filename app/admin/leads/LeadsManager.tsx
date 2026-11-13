@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { reverseLeadAction, deleteLeadAction, bulkDeleteLeadsAction, getLeadDetailsAction } from "./actions";
+import { reverseLeadAction, deleteLeadAction, bulkDeleteLeadsAction, getLeadDetailsAction, approveLeadAction, rejectLeadAction } from "./actions";
 
 export interface AdminLeadRecord {
   id: string;
@@ -79,6 +79,8 @@ export default function LeadsManager({
   const [reversing, setReversing] = useState(false);
 
   // Action Loading & Toast State
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [toast, setToast] = useState<{ text: string; type: "success" | "error" } | null>(null);
@@ -86,6 +88,57 @@ export default function LeadsManager({
   const showToast = (text: string, type: "success" | "error" = "success") => {
     setToast({ text, type });
     setTimeout(() => setToast(null), 4000);
+  };
+
+  const handleApproveLead = async (lead: AdminLeadRecord) => {
+    if (!window.confirm(`Approve lead ${lead.id.slice(0, 8)} and credit ${lead.points.toLocaleString()} pts to ${lead.user_name}?`)) {
+      return;
+    }
+    setApprovingId(lead.id);
+    try {
+      const res = await approveLeadAction(lead.id);
+      if (res.success) {
+        setLeads((prev) =>
+          prev.map((l) => (l.id === lead.id ? { ...l, status: "approved" } : l))
+        );
+        if (inspectingLead?.id === lead.id) {
+          setInspectingLead({ ...inspectingLead, status: "approved" });
+        }
+        showToast(`Lead approved! ${lead.points.toLocaleString()} pts credited to ${lead.user_name}.`, "success");
+        router.refresh();
+      } else {
+        showToast(res.error || "Failed to approve lead", "error");
+      }
+    } catch (err: unknown) {
+      showToast((err as Error).message || "Failed to approve lead", "error");
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  const handleRejectLead = async (lead: AdminLeadRecord) => {
+    const reason = window.prompt("Reason for rejecting this lead (optional):", "Advertiser verification failed");
+    if (reason === null) return;
+    setRejectingId(lead.id);
+    try {
+      const res = await rejectLeadAction({ conversionId: lead.id, reason: reason.trim() });
+      if (res.success) {
+        setLeads((prev) =>
+          prev.map((l) => (l.id === lead.id ? { ...l, status: "rejected" } : l))
+        );
+        if (inspectingLead?.id === lead.id) {
+          setInspectingLead({ ...inspectingLead, status: "rejected" });
+        }
+        showToast(`Lead ${lead.id.slice(0, 8)} rejected.`, "success");
+        router.refresh();
+      } else {
+        showToast(res.error || "Failed to reject lead", "error");
+      }
+    } catch (err: unknown) {
+      showToast((err as Error).message || "Failed to reject lead", "error");
+    } finally {
+      setRejectingId(null);
+    }
   };
 
   // Status Counts
@@ -572,6 +625,37 @@ export default function LeadsManager({
                           <span>Track</span>
                         </button>
 
+                        {lead.status === "pending" && (
+                          <>
+                            <button
+                              className="admin-action-btn action-green"
+                              title="Approve & Credit Lead"
+                              disabled={approvingId === lead.id}
+                              onClick={() => handleApproveLead(lead)}
+                              style={{ backgroundColor: "rgba(34, 197, 94, 0.2)", color: "#4ade80", border: "1px solid rgba(34, 197, 94, 0.4)" }}
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="20 6 9 17 4 12"/>
+                              </svg>
+                              <span>{approvingId === lead.id ? "..." : "App"}</span>
+                            </button>
+
+                            <button
+                              className="admin-action-btn action-red"
+                              title="Reject Lead"
+                              disabled={rejectingId === lead.id}
+                              onClick={() => handleRejectLead(lead)}
+                              style={{ backgroundColor: "rgba(239, 68, 68, 0.15)", color: "#f87171", border: "1px solid rgba(239, 68, 68, 0.4)" }}
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18"/>
+                                <line x1="6" y1="6" x2="18" y2="18"/>
+                              </svg>
+                              <span>{rejectingId === lead.id ? "..." : "Rej"}</span>
+                            </button>
+                          </>
+                        )}
+
                         {lead.status === "approved" && (
                           <button
                             className="admin-action-btn action-yellow"
@@ -777,7 +861,31 @@ export default function LeadsManager({
 
                 {/* Modal Action Buttons */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "12px" }}>
-                  <div>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    {inspectingLead.status === "pending" && (
+                      <>
+                        <button
+                          type="button"
+                          className="admin-btn-pill"
+                          disabled={approvingId === inspectingLead.id}
+                          style={{ backgroundColor: "#22c55e", color: "#000000", fontWeight: 700 }}
+                          onClick={() => handleApproveLead(inspectingLead)}
+                        >
+                          {approvingId === inspectingLead.id ? "Approving..." : `✓ Approve Lead (+${inspectingLead.points.toLocaleString()} pts)`}
+                        </button>
+
+                        <button
+                          type="button"
+                          className="admin-btn-pill"
+                          disabled={rejectingId === inspectingLead.id}
+                          style={{ backgroundColor: "rgba(239, 68, 68, 0.2)", color: "#f87171", border: "1px solid rgba(239, 68, 68, 0.5)" }}
+                          onClick={() => handleRejectLead(inspectingLead)}
+                        >
+                          {rejectingId === inspectingLead.id ? "Rejecting..." : "✕ Reject Lead"}
+                        </button>
+                      </>
+                    )}
+
                     {inspectingLead.status === "approved" && (
                       <button
                         type="button"
